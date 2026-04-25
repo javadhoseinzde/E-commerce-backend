@@ -35,7 +35,7 @@ class RegisterAPIView(APIView):
                 user = MyUser.objects.get(mobile=mobile)
                 user.otp = code
                 user.save()
-                result = result_message("CREATED", status.HTTP_200_OK, "otp send")
+                result = result_message("CREATED", status.HTTP_200_OK, f"otp send {code}")
                 return Response(result, status=status.HTTP_200_OK)
 
             serializer = RegisterSerilizer(data=request.data)            
@@ -117,7 +117,20 @@ class UserProfileAPIView(APIView):
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
         
     def post(self, request):
-        pass
+        user = request.user.id
+        try:
+            serializer = UserProfileSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save(user_id=user)
+                result = result_message("OK", status.HTTP_200_OK, serializer.data)
+                return Response(result, status=status.HTTP_200_OK) 
+            
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, serializer.errors)
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
     
     def put(self, request, id):
         pass
