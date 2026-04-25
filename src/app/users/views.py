@@ -66,11 +66,7 @@ class VerifyAPIView(APIView):
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
         
         user = authenticate(request, mobile=str(mobile), otp=str(otp))
-        print("*"*20)
-        print(mobile)
-        print(otp)
-        print(user)
-        print("*")
+
         if user is not None and user.is_active:
             refresh = RefreshToken.for_user(user)
             message = {
@@ -87,7 +83,6 @@ class VerifyAPIView(APIView):
                 if user_obj.otp != int(otp):
                     result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, "Wrong OTP")
                     return Response(result, status=status.HTTP_400_BAD_REQUEST)
-                # If OTP is correct but authentication failed, it might be due to user.is_active or other backend logic
                 result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, "Authentication failed. Please check your details.")
                 return Response(result, status=status.HTTP_400_BAD_REQUEST)
             except MyUser.DoesNotExist:
