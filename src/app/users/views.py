@@ -9,9 +9,9 @@ from rest_framework_simplejwt.tokens import Token
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 
-from .models import MyUser
+from .models import MyUser, UserProfile
 from Temp.message import result_message
-from .serializer import RegisterSerilizer
+from .serializer import RegisterSerilizer, UserProfileSerializer
 from .helper import check_otp_expiration
 
 class RegisterAPIView(APIView):
@@ -91,3 +91,36 @@ class VerifyAPIView(APIView):
             except Exception as e:
                  result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
                  return Response(result, status=status.HTTP_400_BAD_REQUEST)
+    
+
+    
+class UserProfileAPIView(APIView):
+    def get(self, request):
+        user = request.user.id
+        print(user)
+        """
+            get a user profile detail
+        """
+        
+        try:
+            query = UserProfile.objects.get(user=user)
+            serializer = UserProfileSerializer(query)
+            result = result_message("OK", status.HTTP_200_OK, serializer.data)
+            return Response(result, status=status.HTTP_200_OK) 
+        
+        except UserProfile.DoesNotExist:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, "User Profile not found.")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+    def post(self, request):
+        pass
+    
+    def put(self, request, id):
+        pass
+    
+    def delete(self, request, id):
+        pass
