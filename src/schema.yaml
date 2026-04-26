@@ -26,6 +26,17 @@ paths:
       summary: user profile
       tags:
       - create-user-profile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserProfileRequest'
       security:
       - jwtAuth: []
       responses:
@@ -41,6 +52,17 @@ paths:
       summary: user profile
       tags:
       - create-user-profile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserProfileRequest'
       security:
       - jwtAuth: []
       responses:
@@ -181,6 +203,17 @@ paths:
       summary: user profile
       tags:
       - user-profile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserProfileRequest'
       security:
       - jwtAuth: []
       responses:
@@ -196,6 +229,17 @@ paths:
       summary: user profile
       tags:
       - user-profile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserProfileRequest'
       security:
       - jwtAuth: []
       responses:
@@ -319,6 +363,13 @@ components:
       required:
       - id
       - user
+    UserProfileRequest:
+      type: object
+      properties:
+        full_name:
+          type: string
+          nullable: true
+          maxLength: 15
   securitySchemes:
     jwtAuth:
       type: http

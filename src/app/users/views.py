@@ -109,11 +109,11 @@ class VerifyAPIView(APIView):
     summary="user profile",
     description="this endpoint for user profile",
     responses={200: UserProfileSerializer},
+    request=UserProfileSerializer
 )
 class UserProfileAPIView(APIView):
     def get(self, request):
         user = request.user.id
-        print(user)
         """
             get a user profile detail
         """
@@ -131,7 +131,7 @@ class UserProfileAPIView(APIView):
         except Exception as e:
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
-        
+
     def post(self, request):
         user = request.user.id
         try:
@@ -167,5 +167,18 @@ class UserProfileAPIView(APIView):
             result = result_message("ERROR",status.HTTP_400_BAD_REQUEST,f"{e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
         
-    def delete(self, request, id):
-        pass
+    def delete(self, request):
+        user = request.user.id
+        try:
+            query = UserProfile.objects.get(user=user)
+            query.delete()
+            result = result_message("DELETED",status.HTTP_204_NO_CONTENT,"User Profile delete successfully.")
+            return Response(result, status=status.HTTP_204_NO_CONTENT)
+        
+        except UserProfile.DoesNotExist:
+            result = result_message("NOT_FOUND",status.HTTP_404_NOT_FOUND,"User Profile not found.")
+            return Response(result, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            result = result_message("ERROR",status.HTTP_400_BAD_REQUEST,f"{e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
