@@ -9,14 +9,22 @@ from rest_framework_simplejwt.tokens import Token
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 
+from drf_spectacular.utils import extend_schema
+
+
 from .models import MyUser, UserProfile
 from Temp.message import result_message
 from .serializer import RegisterSerilizer, UserProfileSerializer
 from .helper import check_otp_expiration
 
+@extend_schema(
+    summary="user registeration",
+    description="user registration api",
+    responses={200: RegisterSerilizer},
+)
 class RegisterAPIView(APIView):
     """
-    this API for get number from user and register them send otp code
+    this API for get number fromuser user and register them send otp code
 
     get:
         mobile number,
@@ -51,7 +59,11 @@ class RegisterAPIView(APIView):
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"{e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
         
-
+@extend_schema(
+    summary="verify user",
+    description="this endpoint for send otp for login user with jwt token ",
+    responses={200: RegisterSerilizer},
+)
 class VerifyAPIView(APIView):
     """
         send otp for login user with jwt token
@@ -93,7 +105,11 @@ class VerifyAPIView(APIView):
                  return Response(result, status=status.HTTP_400_BAD_REQUEST)
     
 
-    
+@extend_schema(
+    summary="user profile",
+    description="this endpoint for user profile",
+    responses={200: UserProfileSerializer},
+)
 class UserProfileAPIView(APIView):
     def get(self, request):
         user = request.user.id
