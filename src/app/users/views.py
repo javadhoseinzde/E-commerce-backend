@@ -9,14 +9,22 @@ from rest_framework_simplejwt.tokens import Token
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 
-from .models import MyUser
+from drf_spectacular.utils import extend_schema
+
+
+from .models import MyUser, UserProfile
 from Temp.message import result_message
-from .serializer import RegisterSerilizer
+from .serializer import RegisterSerilizer, UserProfileSerializer
 from .helper import check_otp_expiration
 
+@extend_schema(
+    summary="user registeration",
+    description="user registration api",
+    responses={200: RegisterSerilizer},
+)
 class RegisterAPIView(APIView):
     """
-    this API for get number from user and register them send otp code
+    this API for get number fromuser user and register them send otp code
 
     get:
         mobile number,
@@ -35,7 +43,7 @@ class RegisterAPIView(APIView):
                 user = MyUser.objects.get(mobile=mobile)
                 user.otp = code
                 user.save()
-                result = result_message("CREATED", status.HTTP_200_OK, "otp send")
+                result = result_message("CREATED", status.HTTP_200_OK, f"otp send {code}")
                 return Response(result, status=status.HTTP_200_OK)
 
             serializer = RegisterSerilizer(data=request.data)            
@@ -51,7 +59,11 @@ class RegisterAPIView(APIView):
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"{e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
         
-
+@extend_schema(
+    summary="verify user",
+    description="this endpoint for send otp for login user with jwt token ",
+    responses={200: RegisterSerilizer},
+)
 class VerifyAPIView(APIView):
     """
         send otp for login user with jwt token
@@ -66,11 +78,7 @@ class VerifyAPIView(APIView):
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
         
         user = authenticate(request, mobile=str(mobile), otp=str(otp))
-        print("*"*20)
-        print(mobile)
-        print(otp)
-        print(user)
-        print("*")
+
         if user is not None and user.is_active:
             refresh = RefreshToken.for_user(user)
             message = {
@@ -87,7 +95,6 @@ class VerifyAPIView(APIView):
                 if user_obj.otp != int(otp):
                     result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, "Wrong OTP")
                     return Response(result, status=status.HTTP_400_BAD_REQUEST)
-                # If OTP is correct but authentication failed, it might be due to user.is_active or other backend logic
                 result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, "Authentication failed. Please check your details.")
                 return Response(result, status=status.HTTP_400_BAD_REQUEST)
             except MyUser.DoesNotExist:
@@ -96,3 +103,82 @@ class VerifyAPIView(APIView):
             except Exception as e:
                  result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
                  return Response(result, status=status.HTTP_400_BAD_REQUEST)
+    
+
+@extend_schema(
+    summary="user profile",
+    description="this endpoint for user profile",
+    responses={200: UserProfileSerializer},
+    request=UserProfileSerializer
+)
+class UserProfileAPIView(APIView):
+    def get(self, request):
+        user = request.user.id
+        """
+            get a user profile detail
+        """
+        
+        try:
+            query = UserProfile.objects.get(user=user)
+            serializer = UserProfileSerializer(query)
+            result = result_message("OK", status.HTTP_200_OK, serializer.data)
+            return Response(result, status=status.HTTP_200_OK) 
+        
+        except UserProfile.DoesNotExist:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, "User Profile not found.")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+    def post(self, request):
+        user = request.user.id
+        try:
+            serializer = UserProfileSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save(user_id=user)
+                result = result_message("OK", status.HTTP_200_OK, serializer.data)
+                return Response(result, status=status.HTTP_200_OK) 
+            
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, serializer.errors)
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+    
+    def put(self, request):
+        user = request.user.id
+        try:
+            
+            query = UserProfile.objects.get(user=user)
+            serializer = UserProfileSerializer(query, data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                result = result_message("UPDATED",status.HTTP_200_OK,serializer.data)
+                return Response(result, status=status.HTTP_200_OK)
+            
+        except UserProfile.DoesNotExist:
+            result = result_message("NOT_FOUND",status.HTTP_404_NOT_FOUND,"User Profile not found.")
+            return Response(result, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            result = result_message("ERROR",status.HTTP_400_BAD_REQUEST,f"{e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+    def delete(self, request):
+        user = request.user.id
+        try:
+            query = UserProfile.objects.get(user=user)
+            query.delete()
+            result = result_message("DELETED",status.HTTP_204_NO_CONTENT,"User Profile delete successfully.")
+            return Response(result, status=status.HTTP_204_NO_CONTENT)
+        
+        except UserProfile.DoesNotExist:
+            result = result_message("NOT_FOUND",status.HTTP_404_NOT_FOUND,"User Profile not found.")
+            return Response(result, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            result = result_message("ERROR",status.HTTP_400_BAD_REQUEST,f"{e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
