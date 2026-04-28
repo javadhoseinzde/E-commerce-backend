@@ -266,4 +266,16 @@ class UserAddressAPIView(APIView):
             
     
     def delete(self, request, id):
-        pass
+        try:
+            query = Address.objects.get(id=id)
+            query.delete()
+            result = result_message("DELETED",status.HTTP_204_NO_CONTENT,"User Address delete successfully.")
+            return Response(result, status=status.HTTP_204_NO_CONTENT)
+        
+        except Address.DoesNotExist:
+            result = result_message("NOT_FOUND",status.HTTP_404_NOT_FOUND,"User Address not found.")
+            return Response(result, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            result = result_message("ERROR",status.HTTP_400_BAD_REQUEST,f"{e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
