@@ -16,3 +16,4 @@ class UserAddressSerializer(ModelSerializer):
     class Meta:
         model = Address
         fields = "__all__"
+        read_only_fields = ['user_profile']

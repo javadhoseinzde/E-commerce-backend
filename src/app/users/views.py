@@ -208,13 +208,27 @@ class UserAddressListAPIView(APIView):
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
 
     def post(self, request):
-        pass
-    
+        user = request.user.id
+        try:
+            user_profile = UserProfile.objects.get(user=user)
+            
+            serializer = UserAddressSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save(user_profile=user_profile)
+                result = result_message("OK", status.HTTP_200_OK, serializer.data)
+                return Response(result, status=status.HTTP_200_OK) 
+            
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, serializer.errors)
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+            
 class UserAddressAPIView(APIView):
     def get(self, request, id):
         pass
-    
-    def put(self, request):
+    def put(self, request, id):
         pass
     
     def delete(self, request):
