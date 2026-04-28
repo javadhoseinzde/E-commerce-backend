@@ -224,12 +224,46 @@ class UserAddressListAPIView(APIView):
         except Exception as e:
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
-            
+           
+@extend_schema(
+    summary="user address",
+    description="this endpoint for user profile",
+    responses={200: UserAddressSerializer},
+    request=UserAddressSerializer
+)
 class UserAddressAPIView(APIView):
     def get(self, request, id):
-        pass
-    def put(self, request, id):
-        pass
+        try:
+            query = Address.objects.get(id=id)
+            serializer = UserAddressSerializer(query)
+            result = result_message("OK", status.HTTP_200_OK, serializer.data)
+            return Response(result, status=status.HTTP_200_OK) 
+        
+        except Address.DoesNotExist:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, "User Address not found.")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
     
-    def delete(self, request):
+    def put(self, request, id):
+        try:
+            address = Address.objects.get(id=id)
+            serializer = UserAddressSerializer(address, data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                result = result_message("UPDATED",status.HTTP_200_OK,serializer.data)
+                return Response(result, status=status.HTTP_200_OK)
+            
+        except UserProfile.DoesNotExist:
+            result = result_message("NOT_FOUND",status.HTTP_404_NOT_FOUND,"User Adress not found.")
+            return Response(result, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            result = result_message("ERROR",status.HTTP_400_BAD_REQUEST,f"{e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+            
+    
+    def delete(self, request, id):
         pass
