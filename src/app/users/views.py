@@ -199,7 +199,7 @@ class UserAddressListAPIView(APIView):
             result = result_message("OK", status.HTTP_200_OK, serializer.data)
             return Response(result, status=status.HTTP_200_OK) 
         
-        except UserProfile.DoesNotExist:
+        except Address.DoesNotExist:
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, "User Address not found.")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
         
