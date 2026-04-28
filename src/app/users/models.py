@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 
 class MyUser(AbstractUser):
 	username = None
-	mobile = models.CharField(max_length=11, unique=True, default="a")
+	mobile = models.CharField(max_length=11, unique=True)
 	otp = models.PositiveIntegerField(blank=True, null=True, default="1")
 	otp_create_time = models.DateTimeField(auto_now=True)
 
