@@ -12,9 +12,9 @@ from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from drf_spectacular.utils import extend_schema
 
 
-from .models import MyUser, UserProfile
+from .models import MyUser, UserProfile, Address
 from Temp.message import result_message
-from .serializer import RegisterSerilizer, UserProfileSerializer
+from .serializer import RegisterSerilizer, UserProfileSerializer, UserAddressSerializer
 from .helper import check_otp_expiration
 
 @extend_schema(
@@ -182,3 +182,40 @@ class UserProfileAPIView(APIView):
         except Exception as e:
             result = result_message("ERROR",status.HTTP_400_BAD_REQUEST,f"{e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+
+@extend_schema(
+    summary="user address",
+    description="this endpoint for user profile",
+    responses={200: UserAddressSerializer},
+    request=UserAddressSerializer
+)
+class UserAddressListAPIView(APIView):
+    def get(self, request):
+        user = request.user.id
+        try:
+            query = Address.objects.filter(user_profile__user=user)
+            serializer = UserAddressSerializer(query, many=True)
+            result = result_message("OK", status.HTTP_200_OK, serializer.data)
+            return Response(result, status=status.HTTP_200_OK) 
+        
+        except UserProfile.DoesNotExist:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, "User Address not found.")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+    def post(self, request):
+        pass
+    
+class UserAddressAPIView(APIView):
+    def get(self, request, id):
+        pass
+    
+    def put(self, request):
+        pass
+    
+    def delete(self, request):
+        pass
