@@ -32,6 +32,7 @@ urlpatterns = [
     path("api/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
     
     path("api/", include("app.users.urls")),
+    path("api/", include("app.product.urls")),
     
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),

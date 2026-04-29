@@ -32,7 +32,9 @@ ALLOWED_HOSTS = []
 # Application definition
 LOCAL_APPS = [
     "app.users.apps.UsersConfig",
-    "app.common.apps.CommonConfig"
+    "app.common.apps.CommonConfig",
+    "app.product.apps.ProductConfig",
+
 ]
 
 THIRD_PARTY_APPS = [

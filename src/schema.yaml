@@ -4,6 +4,25 @@ info:
   version: 1.0.0
   description: E-Commerce docs
 paths:
+  /api/category-list/:
+    get:
+      operationId: category_list_retrieve
+      tags:
+      - category-list
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: category_list_create
+      tags:
+      - category-list
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/create-user-profile/:
     get:
       operationId: create_user_profile_retrieve
@@ -181,6 +200,125 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/user-address/:
+    get:
+      operationId: user_address_retrieve
+      description: this endpoint for user profile
+      summary: user address
+      tags:
+      - user-address
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAddress'
+          description: ''
+    post:
+      operationId: user_address_create
+      description: this endpoint for user profile
+      summary: user address
+      tags:
+      - user-address
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserAddressRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserAddressRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserAddressRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAddress'
+          description: ''
+  /api/user-address-detail/{id}/:
+    get:
+      operationId: user_address_detail_retrieve
+      description: this endpoint for user profile
+      summary: user address
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - user-address-detail
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAddress'
+          description: ''
+    put:
+      operationId: user_address_detail_update
+      description: this endpoint for user profile
+      summary: user address
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - user-address-detail
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserAddressRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserAddressRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserAddressRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAddress'
+          description: ''
+    delete:
+      operationId: user_address_detail_destroy
+      description: this endpoint for user profile
+      summary: user address
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - user-address-detail
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAddress'
+          description: ''
   /api/user-profile/:
     get:
       operationId: user_profile_retrieve
@@ -295,6 +433,8 @@ components:
           minimum: 0
           format: int64
           nullable: true
+      required:
+      - mobile
     TokenObtainPair:
       type: object
       properties:
@@ -347,11 +487,85 @@ components:
           minLength: 1
       required:
       - token
+    UserAddress:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        street:
+          type: string
+          maxLength: 255
+        city:
+          type: string
+          maxLength: 100
+        state:
+          type: string
+          maxLength: 100
+        postal_code:
+          type: string
+          maxLength: 20
+        is_default:
+          type: boolean
+        user_profile:
+          type: integer
+          readOnly: true
+      required:
+      - city
+      - id
+      - postal_code
+      - state
+      - street
+      - updated_at
+      - user_profile
+    UserAddressRequest:
+      type: object
+      properties:
+        created_at:
+          type: string
+          format: date-time
+        street:
+          type: string
+          minLength: 1
+          maxLength: 255
+        city:
+          type: string
+          minLength: 1
+          maxLength: 100
+        state:
+          type: string
+          minLength: 1
+          maxLength: 100
+        postal_code:
+          type: string
+          minLength: 1
+          maxLength: 20
+        is_default:
+          type: boolean
+      required:
+      - city
+      - postal_code
+      - state
+      - street
     UserProfile:
       type: object
       properties:
         id:
           type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
           readOnly: true
         full_name:
           type: string
@@ -362,10 +576,14 @@ components:
           readOnly: true
       required:
       - id
+      - updated_at
       - user
     UserProfileRequest:
       type: object
       properties:
+        created_at:
+          type: string
+          format: date-time
         full_name:
           type: string
           nullable: true
