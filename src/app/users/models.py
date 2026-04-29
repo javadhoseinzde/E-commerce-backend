@@ -23,9 +23,15 @@ class MyUser(AbstractUser):
 class UserProfile(BaseModel):
     user = models.OneToOneField(get_user_model(), on_delete=models.CASCADE, related_name='profile')
     full_name = models.CharField(max_length=15, blank=True, null=True)
+
+    class Meta:
+        verbose_name = "User_Profile"
+        verbose_name_plural = "User_Profiles"
+        ordering = ['created_at']
     
     def __str__(self):
         return self.full_name
+
 
 class Address(BaseModel):
     user_profile = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='addresses')
@@ -34,6 +40,10 @@ class Address(BaseModel):
     state = models.CharField(max_length=100)
     postal_code = models.CharField(max_length=20)
     is_default = models.BooleanField(default=False)
-
+    class Meta:
+        verbose_name = "Address"
+        verbose_name_plural = "Address"
+        ordering = ['created_at']
+        
     def __str__(self):
         return f'{self.street}, {self.city} ({self.user_profile.user.username})'
