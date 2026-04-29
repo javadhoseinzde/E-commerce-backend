@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from .myusermanager import MyUserManager
 from django.contrib.auth import get_user_model
+from app.common.models import BaseModel
 
 class MyUser(AbstractUser):
 	username = None
@@ -19,14 +20,14 @@ class MyUser(AbstractUser):
 	def __str__(self):
 		return self.mobile
 
-class UserProfile(models.Model):
+class UserProfile(BaseModel):
     user = models.OneToOneField(get_user_model(), on_delete=models.CASCADE, related_name='profile')
     full_name = models.CharField(max_length=15, blank=True, null=True)
     
     def __str__(self):
         return self.full_name
 
-class Address(models.Model):
+class Address(BaseModel):
     user_profile = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='addresses')
     street = models.CharField(max_length=255)
     city = models.CharField(max_length=100)
