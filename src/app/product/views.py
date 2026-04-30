@@ -50,13 +50,54 @@ class CategroyListAPIView(APIView):
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
         
-    
+@extend_schema(
+    summary="category list",
+    description="this api for get and post category.",
+    responses={200: CategorySerializer},
+    request=CategorySerializer
+)
 class CategoryDetailAPIView(APIView):
     def get(self, request, id):
-        pass
+        try:
+            category = Category.objects.get(id=id)
+            serializer = CategorySerializer(category)
+            result = result_message("OK", status.HTTP_200_OK, serializer.data)
+            return Response(result, status=status.HTTP_200_OK) 
+        
+        except Category.DoesNotExist:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, "Category not found.")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
     
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)    
     def put(self, request, id):
-        pass
-    
+        try:
+            category = Category.objects.get(id=id)
+            serializer = CategorySerializer(category, data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                result = result_message("CREATED", status.HTTP_200_OK, serializer.data)
+                return Response(result, status=status.HTTP_200_OK) 
+            
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, serializer.errors)
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
     def delete(self, request, id):
-        pass
+        try:
+            query = Category.objects.get(id=id)
+            query.delete()
+            result = result_message("DELETED",status.HTTP_204_NO_CONTENT,"Category delete successfully.")
+            return Response(result, status=status.HTTP_204_NO_CONTENT)
+        
+        except Category.DoesNotExist:
+            result = result_message("NOT_FOUND",status.HTTP_404_NOT_FOUND,"Category not found.")
+            return Response(result, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            result = result_message("ERROR",status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
