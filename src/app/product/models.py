@@ -17,6 +17,7 @@ class Category(BaseModel):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = 'Category'
         verbose_name_plural = "Categories"
         ordering = ['parent__id', 'title']
 
@@ -32,3 +33,22 @@ class Category(BaseModel):
         if not self.slug:
             self.slug = slugify(self.title)
         super().save(*args, **kwargs)
+        
+        
+class Product(BaseModel):
+    title = models.CharField(max_length=250)
+    slug = models.SlugField(max_length=260, unique=True)
+    description = models.TextField(blank=True)
+    
+    price = models.DecimalField(max_digits=12, decimal_places=2)
+    is_active = models.BooleanField(default=True)
+
+    categories = models.ManyToManyField(Category, related_name="products", blank=True)
+
+    class Meta:
+        verbose_name = 'Product'
+        verbose_name_plural = "Products"
+        ordering = ['parent__id', 'title']
+
+    def __str__(self):
+        return self.title
