@@ -138,3 +138,31 @@ class ProductListAPIView(APIView):
         except Exception as e:
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
+   
+@extend_schema(
+    summary="Product detail",
+    description="this api for get product get, put and delete.",
+    responses={200: ProductSerializer},
+    request=ProductSerializer
+)     
+class ProductDetailAPIView(APIView):
+    def get(self, request, id):
+        try:
+            product = Product.objects.get(id=id)
+            serializer = ProductSerializer(product)
+            result = result_message("OK", status.HTTP_200_OK, serializer.data)
+            return Response(result, status=status.HTTP_200_OK) 
+        
+        except Product.DoesNotExist:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, "Product not found.")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+    
+    def put(self, request, id):
+        pass
+    
+    def delete(self, request, id):
+        pass

@@ -206,25 +206,125 @@ paths:
               schema:
                 $ref: '#/components/schemas/UserProfile'
           description: ''
+  /api/product-detail/{id}/:
+    get:
+      operationId: product_detail_retrieve
+      description: this api for get product list and post.
+      summary: Product list
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - product-detail
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+    put:
+      operationId: product_detail_update
+      description: this api for get product list and post.
+      summary: Product list
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - product-detail
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+    delete:
+      operationId: product_detail_destroy
+      description: this api for get product list and post.
+      summary: Product list
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - product-detail
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
   /api/product-list/:
     get:
       operationId: product_list_retrieve
+      description: this api for get product list and post.
+      summary: Product list
       tags:
       - product-list
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
     post:
       operationId: product_list_create
+      description: this api for get product list and post.
+      summary: Product list
       tags:
       - product-list
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
   /api/register/:
     post:
       operationId: register_create
@@ -590,6 +690,75 @@ components:
           type: integer
           nullable: true
       required:
+      - slug
+      - title
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        title:
+          type: string
+          maxLength: 250
+        slug:
+          type: string
+          maxLength: 260
+          pattern: ^[-a-zA-Z0-9_]+$
+        description:
+          type: string
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        is_active:
+          type: boolean
+        categories:
+          type: array
+          items:
+            type: integer
+      required:
+      - id
+      - price
+      - slug
+      - title
+      - updated_at
+    ProductRequest:
+      type: object
+      properties:
+        created_at:
+          type: string
+          format: date-time
+        title:
+          type: string
+          minLength: 1
+          maxLength: 250
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 260
+          pattern: ^[-a-zA-Z0-9_]+$
+        description:
+          type: string
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        is_active:
+          type: boolean
+        categories:
+          type: array
+          items:
+            type: integer
+      required:
+      - price
       - slug
       - title
     RegisterSerilizer:
