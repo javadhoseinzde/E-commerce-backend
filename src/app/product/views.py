@@ -7,8 +7,8 @@ from rest_framework_simplejwt.tokens import Token
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 
-from .models import Category
-from .serializer import CategorySerializer
+from .models import Category, Product
+from .serializer import CategorySerializer, ProductSerializer
 from Temp.message import result_message
 
 
@@ -100,4 +100,41 @@ class CategoryDetailAPIView(APIView):
         
         except Exception as e:
             result = result_message("ERROR",status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+@extend_schema(
+    summary="Product list",
+    description="this api for get product list and post.",
+    responses={200: ProductSerializer},
+    request=ProductSerializer
+)
+class ProductListAPIView(APIView):
+    def get(self, request):
+        try:
+            product = Product.objects.all()
+            serializer = ProductSerializer(product, many=True)
+            result = result_message("OK", status.HTTP_200_OK, serializer.data)
+            return Response(result, status=status.HTTP_200_OK) 
+        
+        except Product.DoesNotExist:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, "Product not found.")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+    
+    def post(self, request):
+        try:
+            serializer = ProductSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                result = result_message("OK", status.HTTP_200_OK, serializer.data)
+                return Response(result, status=status.HTTP_200_OK) 
+            
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, serializer.errors)
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)

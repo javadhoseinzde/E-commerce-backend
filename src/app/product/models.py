@@ -48,7 +48,7 @@ class Product(BaseModel):
     class Meta:
         verbose_name = 'Product'
         verbose_name_plural = "Products"
-        ordering = ['parent__id', 'title']
+        ordering = ['created_at', 'title']
 
     def __str__(self):
         return self.title

@@ -7,6 +7,8 @@ paths:
   /api/category-detail/{id}/:
     get:
       operationId: category_detail_retrieve
+      description: this api for get and post category.
+      summary: category list
       parameters:
       - in: path
         name: id
@@ -19,9 +21,48 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
     put:
       operationId: category_detail_update
+      description: this api for get and post category.
+      summary: category list
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - category-detail
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+    delete:
+      operationId: category_detail_destroy
+      description: this api for get and post category.
+      summary: category list
       parameters:
       - in: path
         name: id
@@ -34,22 +75,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
-    delete:
-      operationId: category_detail_destroy
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - category-detail
-      security:
-      - jwtAuth: []
-      responses:
-        '204':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
   /api/category-list/:
     get:
       operationId: category_list_retrieve
@@ -176,6 +206,25 @@ paths:
               schema:
                 $ref: '#/components/schemas/UserProfile'
           description: ''
+  /api/product-list/:
+    get:
+      operationId: product_list_retrieve
+      tags:
+      - product-list
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: product_list_create
+      tags:
+      - product-list
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/register/:
     post:
       operationId: register_create
