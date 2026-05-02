@@ -162,7 +162,21 @@ class ProductDetailAPIView(APIView):
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
     
     def put(self, request, id):
-        pass
-    
+        try:
+            product = Product.objects.get(id=id)
+            serializer = ProductSerializer(product, data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                result = result_message("UPDATED",status.HTTP_200_OK,serializer.data)
+                return Response(result, status=status.HTTP_200_OK)
+            
+        except Product.DoesNotExist:
+            result = result_message("NOT_FOUND",status.HTTP_404_NOT_FOUND,"Product not found.")
+            return Response(result, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            result = result_message("ERROR",status.HTTP_400_BAD_REQUEST,f"{e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+            
     def delete(self, request, id):
         pass
