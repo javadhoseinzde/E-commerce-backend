@@ -230,3 +230,24 @@ class ProductImageListAPIView(APIView):
         except Exception as e:
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+class ProductIamgeDetailAPIView(APIView):
+    def get(self, request, id):
+        try:
+            product_image = ProductImage.objects.get(id=id)
+            serializer = ProductImageSerializer(product_image)
+            result = result_message("OK", status.HTTP_200_OK, serializer.data)
+            return Response(result, status=status.HTTP_200_OK) 
+        
+        except ProductImage.DoesNotExist:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, "Product Image not found.")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+    def put(self, request, id):
+        pass
+    
+    def delete(self, request, id):
+        pass
