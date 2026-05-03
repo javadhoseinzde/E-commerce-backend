@@ -215,3 +215,18 @@ class ProductImageListAPIView(APIView):
         except Exception as e:
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+    def post(self, request):
+        try:
+            serializer = ProductImageSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                result = result_message("OK", status.HTTP_200_OK, serializer.data)
+                return Response(result, status=status.HTTP_200_OK) 
+            
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, serializer.errors)
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
