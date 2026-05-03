@@ -264,4 +264,16 @@ class ProductIamgeDetailAPIView(APIView):
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self, request, id):
-        pass
+        try:
+            product_image = ProductImage.objects.get(id=id)
+            product_image.delete()
+            result = result_message("DELETED",status.HTTP_204_NO_CONTENT,"Product Image delete successfully.")
+            return Response(result, status=status.HTTP_204_NO_CONTENT)
+        
+        except Product.DoesNotExist:
+            result = result_message("NOT_FOUND",status.HTTP_404_NOT_FOUND,"Product Image not found.")
+            return Response(result, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            result = result_message("ERROR",status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
