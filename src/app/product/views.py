@@ -7,8 +7,8 @@ from rest_framework_simplejwt.tokens import Token
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 
-from .models import Category, Product
-from .serializer import CategorySerializer, ProductSerializer
+from .models import Category, Product, ProductImage
+from .serializer import CategorySerializer, ProductSerializer, ProductImageSerializer
 from Temp.message import result_message
 
 
@@ -191,4 +191,27 @@ class ProductDetailAPIView(APIView):
         
         except Exception as e:
             result = result_message("ERROR",status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+@extend_schema(
+    summary="Product Image",
+    description="Product Image get and post api",
+    responses={200: ProductImageSerializer},
+    request=ProductImageSerializer
+)
+class ProductImageListAPIView(APIView):
+    
+    def get(self, request, product_id):
+        try:
+            product_image = ProductImage.objects.all(product_id=product_id)
+            serializer = ProductImageSerializer(product_image, many=True)
+            result = result_message("OK", status.HTTP_200_OK, serializer.data)
+            return Response(result, status=status.HTTP_200_OK) 
+        
+        except ProductImage.DoesNotExist:
+            result = result_message("ERROR", status.HTTP_404_NOT_FOUND, "Product Image not found.")
+            return Response(result, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
