@@ -52,3 +52,16 @@ class Product(BaseModel):
 
     def __str__(self):
         return self.title
+    
+class ProductImage(BaseModel):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="images")
+    image = models.ImageField(upload_to="products/")
+    is_main = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = 'Image'
+        verbose_name_plural = "Images"
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.product.title}"
