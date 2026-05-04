@@ -34,14 +34,13 @@ LOCAL_APPS = [
     "app.users.apps.UsersConfig",
     "app.common.apps.CommonConfig",
     "app.product.apps.ProductConfig",
-
+    "app.order.apps.OrderConfig",
 ]
 
 THIRD_PARTY_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'drf_spectacular',
-
 ]
 
 INSTALLED_APPS = [
