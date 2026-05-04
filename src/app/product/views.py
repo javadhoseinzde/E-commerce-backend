@@ -111,7 +111,19 @@ class CategoryDetailAPIView(APIView):
 class ProductListAPIView(APIView):
     def get(self, request):
         try:
-            product = Product.objects.all()
+            product = Product.objects.filter(is_active=True)
+            title = request.query_params.get('title')
+            min_price = request.query_params.get('min_price')
+            max_price = request.query_params.get('max_price')
+
+            if title:
+                product = product.filter(title__icontains=title)
+
+            if min_price:
+                product = product.filter(price__gte=min_price)
+            if max_price:
+                product = product.filter(price__lte=max_price)
+
             serializer = ProductSerializer(product, many=True)
             result = result_message("OK", status.HTTP_200_OK, serializer.data)
             return Response(result, status=status.HTTP_200_OK) 
@@ -230,7 +242,13 @@ class ProductImageListAPIView(APIView):
         except Exception as e:
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
-        
+     
+@extend_schema(
+    summary="Product Image",
+    description="Product Image get and post api",
+    responses={200: ProductImageSerializer},
+    request=ProductImageSerializer
+)   
 class ProductIamgeDetailAPIView(APIView):
     def get(self, request, id):
         try:
@@ -264,4 +282,16 @@ class ProductIamgeDetailAPIView(APIView):
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self, request, id):
-        pass
+        try:
+            product_image = ProductImage.objects.get(id=id)
+            product_image.delete()
+            result = result_message("DELETED",status.HTTP_204_NO_CONTENT,"Product Image delete successfully.")
+            return Response(result, status=status.HTTP_204_NO_CONTENT)
+        
+        except Product.DoesNotExist:
+            result = result_message("NOT_FOUND",status.HTTP_404_NOT_FOUND,"Product Image not found.")
+            return Response(result, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            result = result_message("ERROR",status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)

@@ -6,12 +6,14 @@ class CategorySerializer(ModelSerializer):
         model = Category
         fields = "__all__"
         
-class ProductSerializer(ModelSerializer):
-    class Meta:
-        model = Product
-        fields = "__all__"
         
 class ProductImageSerializer(ModelSerializer):
     class Meta:
         model = ProductImage
+        fields = "__all__"
+        
+class ProductSerializer(ModelSerializer):
+    images = ProductImageSerializer(many=True, read_only=True)
+    class Meta:
+        model = Product
         fields = "__all__"
