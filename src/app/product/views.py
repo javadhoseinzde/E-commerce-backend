@@ -146,7 +146,6 @@ class ProductListAPIView(APIView):
     request=ProductSerializer
 )     
 class ProductDetailAPIView(APIView):
-    filterset_class = 
     def get(self, request, id):
         try:
             product = Product.objects.get(id=id)
