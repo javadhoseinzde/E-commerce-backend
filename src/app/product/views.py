@@ -111,7 +111,19 @@ class CategoryDetailAPIView(APIView):
 class ProductListAPIView(APIView):
     def get(self, request):
         try:
-            product = Product.objects.all()
+            product = Product.objects.filter(is_active=True)
+            title = request.query_params.get('title')
+            min_price = request.query_params.get('min_price')
+            max_price = request.query_params.get('max_price')
+
+            if title:
+                product = product.filter(title__icontains=title)
+
+            if min_price:
+                product = product.filter(price__gte=min_price)
+            if max_price:
+                product = product.filter(price__lte=max_price)
+
             serializer = ProductSerializer(product, many=True)
             result = result_message("OK", status.HTTP_200_OK, serializer.data)
             return Response(result, status=status.HTTP_200_OK) 
