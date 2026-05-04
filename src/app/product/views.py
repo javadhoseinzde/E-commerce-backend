@@ -146,6 +146,7 @@ class ProductListAPIView(APIView):
     request=ProductSerializer
 )     
 class ProductDetailAPIView(APIView):
+    filterset_class = 
     def get(self, request, id):
         try:
             product = Product.objects.get(id=id)
@@ -230,7 +231,13 @@ class ProductImageListAPIView(APIView):
         except Exception as e:
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
-        
+     
+@extend_schema(
+    summary="Product Image",
+    description="Product Image get and post api",
+    responses={200: ProductImageSerializer},
+    request=ProductImageSerializer
+)   
 class ProductIamgeDetailAPIView(APIView):
     def get(self, request, id):
         try:
