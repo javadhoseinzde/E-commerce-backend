@@ -35,6 +35,7 @@ LOCAL_APPS = [
     "app.common.apps.CommonConfig",
     "app.product.apps.ProductConfig",
     "app.order.apps.OrderConfig",
+    "app.cart.apps.CartConfig",
 ]
 
 THIRD_PARTY_APPS = [
