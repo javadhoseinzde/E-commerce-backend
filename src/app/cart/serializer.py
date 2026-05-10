@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Cart, CartItem
+from .services import get_or_create_cart
 
 class CartItemSerializer(serializers.ModelSerializer):
     product_title = serializers.CharField(source="product.title", read_only=True)
@@ -19,4 +20,35 @@ class CartSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Cart
-        fields = ['id', 'items', 'total_price']
+        fields = ['id', 'items', 'total_price', "is_ordered"]
+        
+class AddToCartSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = CartItem
+        fields = ['product', 'quantity']
+
+    def validate_quantity(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Quantity must be greater than 0")
+        return value
+
+    def create(self, validated_data):
+        request = self.context.get("request")
+        cart = get_or_create_cart(request.user)
+
+        product = validated_data['product']
+        quantity = validated_data['quantity']
+
+        cart_item, created = CartItem.objects.get_or_create(
+            cart=cart,
+            product=product
+        )
+
+        if not created:
+            cart_item.quantity += quantity
+        else:
+            cart_item.quantity = quantity
+
+        cart_item.save()
+        return cart_item
