@@ -7,8 +7,8 @@ from rest_framework_simplejwt.tokens import Token
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 
-from .models import Category, Product, ProductImage
-from .serializer import CategorySerializer, ProductSerializer, ProductImageSerializer
+from .models import Category, Product, ProductImage, ProductVariant
+from .serializer import CategorySerializer, ProductSerializer, ProductImageSerializer, ProductVariantSerializer
 from Temp.message import result_message
 
 
@@ -205,6 +205,99 @@ class ProductDetailAPIView(APIView):
             result = result_message("ERROR",status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
         
+@extend_schema(
+    summary="Product variant list",
+    description="this api for get product variant list and post.",
+    responses={200: ProductVariantSerializer},
+    request=ProductVariantSerializer
+)
+class ProductVariantListAPIView(APIView):
+    def get(self, request):
+        try:
+            product_variant = ProductVariant.objects.filter(is_active=True)
+            serializer = ProductVariantSerializer(product_variant, many=True)
+            result = result_message("OK", status.HTTP_200_OK, serializer.data)
+            return Response(result, status=status.HTTP_200_OK) 
+        
+        except Product.DoesNotExist:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, "Product Variant not found.")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+    
+    def post(self, request):
+        try:
+            serializer = ProductVariantSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save(product_id=request.data['product'])
+                result = result_message("OK", status.HTTP_200_OK, serializer.data)
+                return Response(result, status=status.HTTP_200_OK) 
+            
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, serializer.errors)
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+   
+@extend_schema(
+    summary="Product detail",
+    description="this api for get product get, put and delete.",
+    responses={200: ProductSerializer},
+    request=ProductSerializer
+)     
+class ProductVariantDetailAPIView(APIView):
+    def get(self, request, id):
+        try:
+            product_variant = ProductVariant.objects.get(id=id)
+            serializer = ProductVariantSerializer(product_variant)
+            result = result_message("OK", status.HTTP_200_OK, serializer.data)
+            return Response(result, status=status.HTTP_200_OK) 
+        
+        except Product.DoesNotExist:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, "Product Variant not found.")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+    
+    def put(self, request, id):
+        try:
+            product_variant = ProductVariant.objects.get(id=id)
+            serializer = ProductVariantSerializer(product_variant, data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                result = result_message("UPDATED",status.HTTP_200_OK,serializer.data)
+                return Response(result, status=status.HTTP_200_OK)
+            
+        except Product.DoesNotExist:
+            result = result_message("NOT_FOUND",status.HTTP_404_NOT_FOUND,"Product Variant not found.")
+            return Response(result, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            result = result_message("ERROR",status.HTTP_400_BAD_REQUEST,f"{e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+            
+    def delete(self, request, id):
+        try:
+            product_variant = ProductVariant.objects.get(id=id)
+            product_variant.delete()
+            result = result_message("DELETED",status.HTTP_204_NO_CONTENT,"Product Variant delete successfully.")
+            return Response(result, status=status.HTTP_204_NO_CONTENT)
+        
+        except Product.DoesNotExist:
+            result = result_message("NOT_FOUND",status.HTTP_404_NOT_FOUND,"Product Variant not found.")
+            return Response(result, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            result = result_message("ERROR",status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+
+
 @extend_schema(
     summary="Product Image",
     description="Product Image get and post api",
