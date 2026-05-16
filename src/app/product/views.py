@@ -21,7 +21,7 @@ from Temp.message import result_message
 class CategroyListAPIView(APIView):
     def get(self, request):
         try:
-            category = Category.objects.all()
+            category = Category.objects.filter(is_active=True)
             serializer = CategorySerializer(category, many=True)
             result = result_message("OK", status.HTTP_200_OK, serializer.data)
             return Response(result, status=status.HTTP_200_OK) 
