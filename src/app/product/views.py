@@ -8,11 +8,10 @@ from .models import Category, Product, ProductImage, ProductVariant
 from .serializer import CategorySerializer, ProductSerializer, ProductImageSerializer, ProductVariantSerializer
 from Temp.message import result_message
 from Temp.decorator import admin_required
+from app.cafe.models import CafeUser
 
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
-
-
 
 
 @extend_schema(
@@ -31,7 +30,7 @@ class CategroyListAPIView(APIView):
     
     def get(self, request):
         try:
-            category = Category.objects.filter(is_active=True, cafe=1)
+            category = Category.objects.filter(is_active=True, cafe=request.cafe)
             serializer = CategorySerializer(category, many=True, context={'request': request})
             result = result_message("OK", status.HTTP_200_OK, serializer.data)
             return Response(result, status=status.HTTP_200_OK) 
@@ -46,19 +45,26 @@ class CategroyListAPIView(APIView):
 
     @admin_required
     def post(self, request):
-
         try:
+
+            cafe = request.cafe
+
+            if not CafeUser.objects.filter(user=request.user, cafe=cafe).exists():
+                result = result_message("ERROR", status.HTTP_403_FORBIDDEN, "You are not member of this cafe.")
+                return Response(result, status=status.HTTP_403_FORBIDDEN)
+
             serializer = CategorySerializer(data=request.data)
+
             if serializer.is_valid():
-                category_data = serializer.validated_data 
-                category_data['cafe_id'] = "1"
-                serializer.save()
-                result = result_message("CREATED", status.HTTP_200_OK, serializer.data)
-                return Response(result, status=status.HTTP_200_OK)
-            
+
+                serializer.save(cafe=cafe)
+
+                result = result_message("CREATED", status.HTTP_201_CREATED, serializer.data)
+                return Response(result, status=status.HTTP_201_CREATED)
+
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, serializer.errors)
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
-        
+
         except Exception as e:
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
@@ -88,16 +94,32 @@ class CategoryDetailAPIView(APIView):
     @admin_required
     def put(self, request, id):
         try:
-            category = Category.objects.get(id=id)
+            cafe = request.cafe
+
+            if not request.user.is_staff:
+                result = result_message("ERROR", status.HTTP_403_FORBIDDEN, "You do not have permission to perform this action.")
+                return Response(result, status=status.HTTP_403_FORBIDDEN)
+
+            if not CafeUser.objects.filter(user=request.user, cafe=cafe).exists():
+                result = result_message("ERROR", status.HTTP_403_FORBIDDEN, "You are not member of this cafe.")
+                return Response(result, status=status.HTTP_403_FORBIDDEN)
+
+            category = Category.objects.get(id=id, cafe=cafe)
+
             serializer = CategorySerializer(category, data=request.data)
             if serializer.is_valid():
                 serializer.save()
-                result = result_message("CREATED", status.HTTP_200_OK, serializer.data)
-                return Response(result, status=status.HTTP_200_OK) 
-            
+
+                result = result_message("UPDATED", status.HTTP_200_OK, serializer.data)
+                return Response(result, status=status.HTTP_200_OK)
+
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, serializer.errors)
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
-        
+
+        except Category.DoesNotExist:
+            result = result_message("NOT_FOUND", status.HTTP_404_NOT_FOUND, "Category not found.")
+            return Response(result, status=status.HTTP_404_NOT_FOUND)
+
         except Exception as e:
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
