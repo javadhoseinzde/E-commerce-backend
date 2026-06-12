@@ -40,7 +40,8 @@ class CartItemAPIView(APIView):
 
                 result = result_message("OK", status.HTTP_200_OK, output_serializer.data)
                 return Response(result, status=status.HTTP_200_OK)
-        
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {serializer.errors}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)

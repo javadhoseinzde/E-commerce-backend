@@ -12,7 +12,7 @@ class MobileBackend(ModelBackend):
             return None
 
         try:
-            user = MyUser.objects.get(mobile=mobile)
+            user = MyUser.objects.get(mobile=mobile, otp=otp)
 
             if not user.is_active:
                 return None

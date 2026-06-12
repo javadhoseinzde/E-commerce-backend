@@ -209,8 +209,8 @@ paths:
   /api/product-detail/{id}/:
     get:
       operationId: product_detail_retrieve
-      description: this api for get product list and post.
-      summary: Product list
+      description: this api for get product get, put and delete.
+      summary: Product detail
       parameters:
       - in: path
         name: id
@@ -230,8 +230,8 @@ paths:
           description: ''
     put:
       operationId: product_detail_update
-      description: this api for get product list and post.
-      summary: Product list
+      description: this api for get product get, put and delete.
+      summary: Product detail
       parameters:
       - in: path
         name: id
@@ -263,8 +263,8 @@ paths:
           description: ''
     delete:
       operationId: product_detail_destroy
-      description: this api for get product list and post.
-      summary: Product list
+      description: this api for get product get, put and delete.
+      summary: Product detail
       parameters:
       - in: path
         name: id
@@ -281,6 +281,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Product'
+          description: ''
+  /api/product-image-list/{product_id}/:
+    get:
+      operationId: product_image_list_retrieve
+      description: Product Image get and post api
+      summary: Product Image
+      parameters:
+      - in: path
+        name: product_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - product-image-list
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductImage'
           description: ''
   /api/product-list/:
     get:
@@ -729,6 +751,31 @@ components:
       - price
       - slug
       - title
+      - updated_at
+    ProductImage:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        image:
+          type: string
+          format: uri
+        is_main:
+          type: boolean
+        product:
+          type: integer
+      required:
+      - id
+      - image
+      - product
       - updated_at
     ProductRequest:
       type: object

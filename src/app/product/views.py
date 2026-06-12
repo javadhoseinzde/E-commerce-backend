@@ -3,13 +3,16 @@ from drf_spectacular.utils import extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView 
 from rest_framework import status
-from rest_framework_simplejwt.tokens import Token
-from rest_framework.permissions import AllowAny
-from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 
 from .models import Category, Product, ProductImage, ProductVariant
 from .serializer import CategorySerializer, ProductSerializer, ProductImageSerializer, ProductVariantSerializer
 from Temp.message import result_message
+from Temp.decorator import admin_required
+
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.views import APIView
+
+
 
 
 @extend_schema(
@@ -19,10 +22,17 @@ from Temp.message import result_message
     request=CategorySerializer
 )
 class CategroyListAPIView(APIView):
+    
+    def get_permissions(self):
+        if self.request.method == "GET":
+            return [AllowAny()]
+
+        return [IsAuthenticated()]
+    
     def get(self, request):
         try:
-            category = Category.objects.filter(is_active=True)
-            serializer = CategorySerializer(category, many=True)
+            category = Category.objects.filter(is_active=True, cafe=1)
+            serializer = CategorySerializer(category, many=True, context={'request': request})
             result = result_message("OK", status.HTTP_200_OK, serializer.data)
             return Response(result, status=status.HTTP_200_OK) 
         
@@ -34,14 +44,17 @@ class CategroyListAPIView(APIView):
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
 
-    
+    @admin_required
     def post(self, request):
+
         try:
             serializer = CategorySerializer(data=request.data)
             if serializer.is_valid():
+                category_data = serializer.validated_data 
+                category_data['cafe_id'] = "1"
                 serializer.save()
                 result = result_message("CREATED", status.HTTP_200_OK, serializer.data)
-                return Response(result, status=status.HTTP_200_OK) 
+                return Response(result, status=status.HTTP_200_OK)
             
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, serializer.errors)
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
@@ -71,6 +84,8 @@ class CategoryDetailAPIView(APIView):
         except Exception as e:
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)    
+    
+    @admin_required
     def put(self, request, id):
         try:
             category = Category.objects.get(id=id)
@@ -86,9 +101,15 @@ class CategoryDetailAPIView(APIView):
         except Exception as e:
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
-
+        
+    @admin_required
     def delete(self, request, id):
         try:
+            
+            if not request.user.is_staff:
+                result = result("ERROR", status.HTTP_400_BAD_REQUESTM, "You do not have permission to perform this action.")
+                return Response(result, status=status.HTTP_400_BAD_REQUEST)
+            
             query = Category.objects.get(id=id)
             query.delete()
             result = result_message("DELETED",status.HTTP_204_NO_CONTENT,"Category delete successfully.")
@@ -109,6 +130,12 @@ class CategoryDetailAPIView(APIView):
     request=ProductSerializer
 )
 class ProductListAPIView(APIView):
+    def get_permissions(self):
+        if self.request.method == "GET":
+            return [AllowAny()]
+
+        return [IsAuthenticated()]
+    
     def get(self, request):
         try:
             product = Product.objects.filter(is_active=True)
@@ -124,7 +151,7 @@ class ProductListAPIView(APIView):
             if max_price:
                 product = product.filter(price__lte=max_price)
 
-            serializer = ProductSerializer(product, many=True)
+            serializer = ProductSerializer(product, many=True, context={'request': request})
             result = result_message("OK", status.HTTP_200_OK, serializer.data)
             return Response(result, status=status.HTTP_200_OK) 
         
@@ -135,7 +162,8 @@ class ProductListAPIView(APIView):
         except Exception as e:
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
-    
+        
+    @admin_required
     def post(self, request):
         try:
             serializer = ProductSerializer(data=request.data)
@@ -173,6 +201,7 @@ class ProductDetailAPIView(APIView):
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
     
+    @admin_required
     def put(self, request, id):
         try:
             product = Product.objects.get(id=id)
@@ -181,7 +210,9 @@ class ProductDetailAPIView(APIView):
                 serializer.save()
                 result = result_message("UPDATED",status.HTTP_200_OK,serializer.data)
                 return Response(result, status=status.HTTP_200_OK)
-            
+            result = result_message("ERROR",status.HTTP_400_BAD_REQUEST,serializer.errors)
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+           
         except Product.DoesNotExist:
             result = result_message("NOT_FOUND",status.HTTP_404_NOT_FOUND,"Product not found.")
             return Response(result, status=status.HTTP_404_NOT_FOUND)
@@ -189,7 +220,8 @@ class ProductDetailAPIView(APIView):
         except Exception as e:
             result = result_message("ERROR",status.HTTP_400_BAD_REQUEST,f"{e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
-            
+           
+    @admin_required 
     def delete(self, request, id):
         try:
             product = Product.objects.get(id=id)
@@ -226,7 +258,8 @@ class ProductVariantListAPIView(APIView):
         except Exception as e:
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
-    
+
+    @admin_required
     def post(self, request):
         try:
             serializer = ProductVariantSerializer(data=request.data)
@@ -263,7 +296,8 @@ class ProductVariantDetailAPIView(APIView):
         except Exception as e:
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
-    
+   
+    @admin_required 
     def put(self, request, id):
         try:
             product_variant = ProductVariant.objects.get(id=id)
@@ -280,7 +314,8 @@ class ProductVariantDetailAPIView(APIView):
         except Exception as e:
             result = result_message("ERROR",status.HTTP_400_BAD_REQUEST,f"{e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
-            
+    
+    @admin_required        
     def delete(self, request, id):
         try:
             product_variant = ProductVariant.objects.get(id=id)
@@ -320,7 +355,8 @@ class ProductImageListAPIView(APIView):
         except Exception as e:
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
-        
+     
+    @admin_required   
     def post(self, request):
         try:
             serializer = ProductImageSerializer(data=request.data)
@@ -357,6 +393,8 @@ class ProductIamgeDetailAPIView(APIView):
         except Exception as e:
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+    @admin_required
     def put(self, request, id):
         try:
             product_image = ProductImage.objects.get(id=id)
@@ -374,6 +412,7 @@ class ProductIamgeDetailAPIView(APIView):
             result = result_message("ERROR",status.HTTP_400_BAD_REQUEST,f"{e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
     
+    @admin_required
     def delete(self, request, id):
         try:
             product_image = ProductImage.objects.get(id=id)

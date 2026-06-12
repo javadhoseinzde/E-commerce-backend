@@ -4,11 +4,13 @@ from app.order.models import Order, OrderItem
 
 class OrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.title', read_only=True)
+    variant_title = serializers.CharField(source='variant.size', read_only=True)
+
     total_price = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderItem
-        fields = ['id', 'product', 'product_name', 'quantity', 'price', 'total_price']
+        fields = ['id', 'product', 'product_name', 'quantity','variant_title', 'price', 'total_price']
 
     def get_total_price(self, obj):
         return obj.price * obj.quantity
@@ -25,3 +27,9 @@ class OrderSerializer(serializers.ModelSerializer):
 class CreateOrderSerializer(serializers.Serializer):
     table_number = serializers.IntegerField(required=False, allow_null=True)
     payment_method = serializers.ChoiceField(choices=['cash', 'online'], default='cash')
+
+
+class OrderUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Order
+        fields = ['status']

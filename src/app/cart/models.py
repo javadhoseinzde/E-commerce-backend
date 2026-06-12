@@ -2,9 +2,11 @@ from django.db import models
 from django.conf import settings
 from app.common.models import BaseModel
 from app.product.models import Product, ProductVariant
+from app.cafe.models import Cafe
 
 class Cart(BaseModel):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,)
+    cafe = models.ForeignKey(Cafe, on_delete=models.CASCADE, related_name='carts', null=True, blank=True)
     is_ordered = models.BooleanField(default=False)
 
     def __str__(self):

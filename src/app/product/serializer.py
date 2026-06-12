@@ -2,11 +2,6 @@ from rest_framework.serializers import ModelSerializer
 from rest_framework import serializers
 from .models import Category, Product, ProductImage, ProductVariant
 
-class CategorySerializer(ModelSerializer):
-    class Meta:
-        model = Category
-        fields = "__all__"
-        
         
 class ProductImageSerializer(ModelSerializer):
     class Meta:
@@ -26,5 +21,19 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = "__all__"
+        exclude = ["slug"]
         
+class CategorySerializer(serializers.ModelSerializer):
+    products = ProductSerializer(
+        many=True,
+        read_only=True
+    )
+
+    class Meta:
+        model = Category
+        fields = [
+            "id",
+            "title",
+            "parent",
+            "products"
+        ]

@@ -35,7 +35,7 @@ class RegisterAPIView(APIView):
     def post(self, request):
         try:
             
-            code = random.randint(3, 100000)
+            code = 12345
             mobile = request.data.get("mobile")
 
             
@@ -104,6 +104,55 @@ class VerifyAPIView(APIView):
                  result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
                  return Response(result, status=status.HTTP_400_BAD_REQUEST)
     
+@extend_schema(
+    summary="admin login",
+    description="login admin with username and password",
+)
+class AdminLoginAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        try:
+            username = request.data.get("username")
+            password = request.data.get("password")
+
+            if not username:
+                result = result_message("ERROR",status.HTTP_400_BAD_REQUEST, "username is required")
+                return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+            if not password:
+                result = result_message("ERROR",status.HTTP_400_BAD_REQUEST,"password is required")
+                return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+            user = authenticate(request,username=username,password=password)
+
+            if user is None:
+                result = result_message("ERROR",status.HTTP_400_BAD_REQUEST,"username or password is wrong")
+                return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+            if not user.is_active:
+                result = result_message("ERROR",status.HTTP_400_BAD_REQUEST,"user is inactive")
+                return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+            if not user.is_staff:
+                result = result_message("ERROR",status.HTTP_403_FORBIDDEN,"access denied")
+                return Response(result, status=status.HTTP_403_FORBIDDEN)
+
+            refresh = RefreshToken.for_user(user)
+
+            message = {
+                "refresh": str(refresh),
+                "token": str(refresh.access_token),
+                "username": user.username,
+            }
+
+            result = result_message("OK", status.HTTP_200_OK, message)
+            return Response(result, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, str(e))
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
 
 @extend_schema(
     summary="user profile",

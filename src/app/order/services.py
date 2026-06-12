@@ -19,9 +19,8 @@ def create_order_from_cart(user, table_number=None, payment_method='cash'):
     order_items = []
     for item in cart_items:
         order_items.append(
-            OrderItem(order=order, product=item.product, quantity=item.quantity, price=item.product.price)
+            OrderItem(order=order, product=item.product, quantity=item.quantity, price=item.variant.price, variant=item.variant)
         )
-        print(item)
 
     OrderItem.objects.bulk_create(order_items)
     cart_items.update(is_ordered=True)

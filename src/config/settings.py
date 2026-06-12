@@ -26,8 +26,12 @@ SECRET_KEY = 'django-insecure-_y+qlx00hnieg3qv_s!gz9w8%4dr&x0=nv)djm$s%g7pv962o=
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = ["*"]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://192.168.94.84:5173",
+]
+CORS_ALLOW_ALL_ORIGINS = True
 
 # Application definition
 LOCAL_APPS = [
@@ -36,12 +40,16 @@ LOCAL_APPS = [
     "app.product.apps.ProductConfig",
     "app.order.apps.OrderConfig",
     "app.cart.apps.CartConfig",
+    "app.cafe.apps.CafeConfig",
+    
 ]
 
 THIRD_PARTY_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'drf_spectacular',
+    'corsheaders',
+
 ]
 
 INSTALLED_APPS = [
@@ -58,11 +66,13 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    "corsheaders.middleware.CorsMiddleware",
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # 'config.middleware.CafeTenantMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
