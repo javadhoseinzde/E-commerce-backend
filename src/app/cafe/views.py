@@ -3,6 +3,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
+from rest_framework.permissions import AllowAny
 
 from Temp.message import result_message
 from .models import Cafe, CafeUser
@@ -54,9 +55,11 @@ class CafeListAPIView(APIView):
     request=CafeSerializer
 )
 class CafeDetailAPIView(APIView):
-    def get(self, request, id):
+    permission_classes = [AllowAny]
+    def get(self, request):
         try:
-            category = Cafe.objects.get(id=id)
+            print(request.cafe)
+            category = Cafe.objects.get(name=request.cafe)
             serializer = CafeSerializer(category)
             result = result_message("OK", status.HTTP_200_OK, serializer.data)
             return Response(result, status=status.HTTP_200_OK) 

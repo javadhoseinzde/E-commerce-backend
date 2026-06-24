@@ -21,7 +21,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        exclude = ["slug"]
+        exclude = ["slug", "cafe"]
         
 class CategorySerializer(serializers.ModelSerializer):
     products = ProductSerializer(

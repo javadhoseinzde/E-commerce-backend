@@ -10,8 +10,8 @@ class Category(BaseModel):
     # slug = models.SlugField(max_length=220)
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='subcategories')
     is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
+    order = models.PositiveIntegerField(default=0) 
+    
     class Meta:
         verbose_name = 'Category'
         verbose_name_plural = "Categories"
@@ -39,7 +39,6 @@ class Product(BaseModel):
     categories = models.ManyToManyField(Category, related_name="products", blank=True)
     image = models.ImageField(upload_to="products/")
 
-
     class Meta:
         verbose_name = 'Product'
         verbose_name_plural = "Products"
@@ -49,17 +48,6 @@ class Product(BaseModel):
         return self.title
 
     def save(self, *args, **kwargs):
-        if not self.slug:
-            base_slug = slugify(self.title)
-
-            unique_id = uuid.uuid4().hex[:8]
-
-            self.slug = f"{base_slug}-{unique_id}"
-
-            while Product.objects.filter(slug=self.slug).exists():
-                unique_id = uuid.uuid4().hex[:8]
-                self.slug = f"{base_slug}-{unique_id}"
-
         super().save(*args, **kwargs)
         
 class ProductVariant(BaseModel):

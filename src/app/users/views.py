@@ -21,6 +21,7 @@ from .helper import check_otp_expiration
     summary="user registeration",
     description="user registration api",
     responses={200: RegisterSerilizer},
+    request=RegisterSerilizer
 )
 class RegisterAPIView(APIView):
     """
@@ -63,6 +64,8 @@ class RegisterAPIView(APIView):
     summary="verify user",
     description="this endpoint for send otp for login user with jwt token ",
     responses={200: RegisterSerilizer},
+    request=RegisterSerilizer
+
 )
 class VerifyAPIView(APIView):
     """
