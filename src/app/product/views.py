@@ -150,6 +150,47 @@ class CategoryDetailAPIView(APIView):
             result = result_message("ERROR",status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
 
+
+
+class CategoryReorderView(APIView):
+    
+    @admin_required
+    def patch(self, request):
+        try:
+            cafe = request.cafe
+            if not CafeUser.objects.filter(user=request.user, cafe=cafe).exists():
+                result = result_message("ERROR", status.HTTP_403_FORBIDDEN, "You are not member of this cafe.")
+                return Response(result, status=status.HTTP_403_FORBIDDEN)
+            
+            # expects: [{"id": 1, "order": 0}, {"id": 2, "order": 1}, ...]
+            items = request.data.get("categories", [])
+            if not items:
+                result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, "categories list is required.")
+                return Response(result, status=status.HTTP_400_BAD_REQUEST)
+            
+            # bulk update با یه query
+            categories = Category.objects.filter(
+                cafe=cafe,
+                id__in=[item["id"] for item in items]
+            )
+            cat_map = {cat.id: cat for cat in categories}
+            
+            to_update = []
+            for item in items:
+                cat = cat_map.get(item["id"])
+                if cat:
+                    cat.order = item["order"]
+                    to_update.append(cat)
+            
+            Category.objects.bulk_update(to_update, ["order"])
+            
+            result = result_message("UPDATED", status.HTTP_200_OK, "Categories reordered successfully.")
+            return Response(result, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
 @extend_schema(
     summary="Product list",
     description="this api for get product list and post.",

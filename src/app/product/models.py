@@ -15,7 +15,7 @@ class Category(BaseModel):
     class Meta:
         verbose_name = 'Category'
         verbose_name_plural = "Categories"
-        ordering = ['parent__id', 'title']
+        ordering = ['order']
 
     def __str__(self):
         full_path = [self.title]

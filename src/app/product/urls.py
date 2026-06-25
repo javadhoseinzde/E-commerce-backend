@@ -7,12 +7,14 @@ from .views import (
     ProductVariantListAPIView,
     ProductVariantDetailAPIView,
     ProductImageListAPIView,
-    ProductIamgeDetailAPIView
+    ProductIamgeDetailAPIView,
+    CategoryReorderView
 )
 
 urlpatterns = [
     path("category-list/", CategroyListAPIView.as_view(), name="category-list"),
     path("category-detail/<int:id>/", CategoryDetailAPIView.as_view(), name="category-detail"),
+    path('category-reorder/', CategoryReorderView.as_view()),
     
     path("product-list/", ProductListAPIView.as_view(), name="product-list"),
     path("product-detail/<int:id>/", ProductDetailAPIView.as_view(), name="product-detail"),
