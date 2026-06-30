@@ -2,3 +2,6 @@ __pycache__/
 migrations/
 db.sqlite3
 media/
+services/
+.env
+.DS_Store/
