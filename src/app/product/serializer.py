@@ -35,5 +35,6 @@ class CategorySerializer(serializers.ModelSerializer):
             "id",
             "title",
             "parent",
-            "products"
+            "products",
+            "icon"
         ]

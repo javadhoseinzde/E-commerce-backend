@@ -7,6 +7,8 @@ import uuid
 class Category(BaseModel):
     cafe = models.ForeignKey(Cafe, on_delete=models.CASCADE, related_name='category', null=True, blank=True)
     title = models.CharField(max_length=200)
+    icon = models.CharField(max_length=200)
+
     # slug = models.SlugField(max_length=220)
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='subcategories')
     is_active = models.BooleanField(default=True)
