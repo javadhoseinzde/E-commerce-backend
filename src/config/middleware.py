@@ -18,14 +18,10 @@
 #         response = self.get_response(request)
 #         return response
 
-from app.cafe.models import Cafe
-
-class CafeTenantMiddleware:
+class TenantMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        # 🔥 TEST MODE: همیشه کافه 1
-        request.cafe = Cafe.objects.get(id=1)
-
+        request.cafe = request.headers.get("X-Cafe")
         return self.get_response(request)
