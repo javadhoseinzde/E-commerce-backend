@@ -28,6 +28,7 @@ env = environ.Env()
 
 
 
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
@@ -58,6 +59,13 @@ CORS_ALLOWED_ORIGINS = [
     "http://api.menunoo.ir",
     "http://nati.menunoo.ir",
 ]
+
+لCSRF_TRUSTED_ORIGINS = [
+    "http://185.8.173.148:8080",
+    "http://185.8.173.148",
+    "http://nati.menono:5173",
+]
+
 CORS_ALLOW_ALL_ORIGINS = True
 
 # Application definition
@@ -223,12 +231,12 @@ STORAGES = {
     },
 }
 
-AWS_ACCESS_KEY_ID = "minioadmin"
-AWS_SECRET_ACCESS_KEY = "minioadmin"
+AWS_ACCESS_KEY_ID = MINIO_ACCESS_KEY
+AWS_SECRET_ACCESS_KEY = MINIO_SECRET_KEY
 
 AWS_STORAGE_BUCKET_NAME = "media"
 
-AWS_S3_ENDPOINT_URL = "http://127.0.0.1:9000"
+AWS_S3_ENDPOINT_URL = env("MINIO_ENDPOINT")
 
 AWS_S3_REGION_NAME = "us-east-1"
 
