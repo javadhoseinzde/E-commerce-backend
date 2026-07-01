@@ -21,13 +21,10 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        exclude = ["slug", "cafe"]
+        exclude = ["cafe"]
         
 class CategorySerializer(serializers.ModelSerializer):
-    products = ProductSerializer(
-        many=True,
-        read_only=True
-    )
+    products = ProductSerializer(many=True, read_only=True)
 
     class Meta:
         model = Category

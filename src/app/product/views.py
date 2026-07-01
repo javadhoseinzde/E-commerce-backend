@@ -9,6 +9,7 @@ from .serializer import CategorySerializer, ProductSerializer, ProductImageSeria
 from Temp.message import result_message
 from Temp.decorator import admin_required
 from app.cafe.models import CafeUser
+from app.cafe.models import Cafe
 
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
@@ -30,7 +31,7 @@ class CategroyListAPIView(APIView):
     
     def get(self, request):
         try:
-            category = Category.objects.filter(is_active=True, cafe=request.cafe)
+            category = Category.objects.filter(is_active=True, cafe__slug=request.cafe)
             serializer = CategorySerializer(category, many=True, context={'request': request})
             result = result_message("OK", status.HTTP_200_OK, serializer.data)
             return Response(result, status=status.HTTP_200_OK) 
@@ -48,8 +49,7 @@ class CategroyListAPIView(APIView):
         try:
 
             cafe = request.cafe
-
-            if not CafeUser.objects.filter(user=request.user, cafe=cafe).exists():
+            if not CafeUser.objects.filter(user=request.user, cafe__slug=cafe).exists():
                 result = result_message("ERROR", status.HTTP_403_FORBIDDEN, "You are not member of this cafe.")
                 return Response(result, status=status.HTTP_403_FORBIDDEN)
 
@@ -57,8 +57,9 @@ class CategroyListAPIView(APIView):
 
             if serializer.is_valid():
 
-                serializer.save(cafe=cafe)
-
+                cafe_obj = Cafe.objects.get(slug=request.cafe)
+                serializer.save(cafe=cafe_obj)
+                
                 result = result_message("CREATED", status.HTTP_201_CREATED, serializer.data)
                 return Response(result, status=status.HTTP_201_CREATED)
 
@@ -100,11 +101,11 @@ class CategoryDetailAPIView(APIView):
                 result = result_message("ERROR", status.HTTP_403_FORBIDDEN, "You do not have permission to perform this action.")
                 return Response(result, status=status.HTTP_403_FORBIDDEN)
 
-            if not CafeUser.objects.filter(user=request.user, cafe=cafe).exists():
+            if not CafeUser.objects.filter(user=request.user, cafe__slug=cafe).exists():
                 result = result_message("ERROR", status.HTTP_403_FORBIDDEN, "You are not member of this cafe.")
                 return Response(result, status=status.HTTP_403_FORBIDDEN)
 
-            category = Category.objects.get(id=id, cafe=cafe)
+            category = Category.objects.get(id=id, cafe__slug=cafe)
 
             serializer = CategorySerializer(category, data=request.data)
             if serializer.is_valid():
@@ -133,7 +134,7 @@ class CategoryDetailAPIView(APIView):
                 result = result("ERROR", status.HTTP_400_BAD_REQUESTM, "You do not have permission to perform this action.")
                 return Response(result, status=status.HTTP_400_BAD_REQUEST)
 
-            if not CafeUser.objects.filter(user=request.user, cafe=cafe).exists():
+            if not CafeUser.objects.filter(user=request.user, cafe__slug=cafe).exists():
                 result = result_message("ERROR", status.HTTP_403_FORBIDDEN, "You are not member of this cafe.")
                 return Response(result, status=status.HTTP_403_FORBIDDEN)          
   
@@ -158,7 +159,7 @@ class CategoryReorderView(APIView):
     def patch(self, request):
         try:
             cafe = request.cafe
-            if not CafeUser.objects.filter(user=request.user, cafe=cafe).exists():
+            if not CafeUser.objects.filter(user=request.user, cafe__slug=cafe).exists():
                 result = result_message("ERROR", status.HTTP_403_FORBIDDEN, "You are not member of this cafe.")
                 return Response(result, status=status.HTTP_403_FORBIDDEN)
             
@@ -170,7 +171,7 @@ class CategoryReorderView(APIView):
             
             # bulk update با یه query
             categories = Category.objects.filter(
-                cafe=cafe,
+                cafe__slug=cafe,
                 id__in=[item["id"] for item in items]
             )
             cat_map = {cat.id: cat for cat in categories}
@@ -207,7 +208,7 @@ class ProductListAPIView(APIView):
     def get(self, request):
         try:
             cafe = request.cafe
-            product = Product.objects.filter(is_active=True, cafe=cafe)
+            product = Product.objects.filter(is_active=True, cafe__slug=cafe)
 
             title = request.query_params.get('title')
             min_price = request.query_params.get('min_price')
@@ -235,7 +236,8 @@ class ProductListAPIView(APIView):
             serializer = ProductSerializer(data=request.data)
 
             if serializer.is_valid():
-                serializer.save(cafe=cafe)
+                cafe_obj = Cafe.objects.get(slug=request.cafe)
+                serializer.save(cafe=cafe_obj)
                 result = result_message("CREATED", status.HTTP_201_CREATED, serializer.data)
                 return Response(result, status=status.HTTP_201_CREATED)
 
@@ -256,7 +258,7 @@ class ProductDetailAPIView(APIView):
     def get(self, request, id):
         try:
             cafe = request.cafe
-            product = Product.objects.get(id=id, cafe=cafe)
+            product = Product.objects.get(id=id, cafe__slug=cafe)
 
             serializer = ProductSerializer(product)
             result = result_message("OK", status.HTTP_200_OK, serializer.data)
@@ -275,11 +277,11 @@ class ProductDetailAPIView(APIView):
         try:
             cafe = request.cafe
 
-            if not CafeUser.objects.filter(user=request.user, cafe=cafe).exists():
+            if not CafeUser.objects.filter(user=request.user, cafe__slug=cafe).exists():
                 result = result_message("ERROR", status.HTTP_403_FORBIDDEN, "You are not member of this cafe.")
                 return Response(result, status=status.HTTP_403_FORBIDDEN)                   
             
-            product = Product.objects.get(id=id, cafe=cafe)
+            product = Product.objects.get(id=id, cafe__slug=cafe)
 
             serializer = ProductSerializer(product, data=request.data, partial=True)
 
@@ -304,11 +306,11 @@ class ProductDetailAPIView(APIView):
         try:
             cafe = request.cafe
             
-            if not CafeUser.objects.filter(user=request.user, cafe=cafe).exists():
+            if not CafeUser.objects.filter(user=request.user, cafe__slug=cafe).exists():
                 result = result_message("ERROR", status.HTTP_403_FORBIDDEN, "You are not member of this cafe.")
                 return Response(result, status=status.HTTP_403_FORBIDDEN)       
 
-            product = Product.objects.get(id=id, cafe=cafe)
+            product = Product.objects.get(id=id, cafe__slug=cafe)
 
             product.delete()
 

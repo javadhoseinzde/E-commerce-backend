@@ -59,7 +59,7 @@ class CafeDetailAPIView(APIView):
     def get(self, request):
         try:
             print(request.cafe)
-            category = Cafe.objects.get(name=request.cafe)
+            category = Cafe.objects.get(slug=request.cafe)
             serializer = CafeSerializer(category)
             result = result_message("OK", status.HTTP_200_OK, serializer.data)
             return Response(result, status=status.HTTP_200_OK) 

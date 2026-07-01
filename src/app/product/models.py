@@ -34,7 +34,6 @@ class Category(BaseModel):
 class Product(BaseModel):
     cafe = models.ForeignKey(Cafe, on_delete=models.CASCADE, related_name='product', null=True, blank=True)
     title = models.CharField(max_length=250)
-    slug = models.SlugField(max_length=260, unique=True)
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=12, decimal_places=2)
     is_active = models.BooleanField(default=True)

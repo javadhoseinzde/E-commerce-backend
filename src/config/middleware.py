@@ -18,10 +18,16 @@
 #         response = self.get_response(request)
 #         return response
 
-class TenantMiddleware:
+class CafeTenantMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        request.cafe = request.headers.get("X-Cafe")
+        print("HEADERS:", request.headers)
+
+        cafe = request.META.get("HTTP_X_CAFE")  # ✅ reliable way
+        request.cafe = cafe
+
+        print("CAFE:", request.cafe)
+
         return self.get_response(request)

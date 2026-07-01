@@ -17,7 +17,14 @@ from .swagger import SPECTACULAR_SETTINGS
 import os
 import environ
 
+from corsheaders.defaults import default_headers
+
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "x-cafe",
+]
+
 env = environ.Env()
+
 
 
 
@@ -36,14 +43,17 @@ SECRET_KEY = 'django-insecure-_y+qlx00hnieg3qv_s!gz9w8%4dr&x0=nv)djm$s%g7pv962o=
 DEBUG = True
 
 ALLOWED_HOSTS = [
+    "192.168.94.84",
+    "nati.menono",
     "api.menunoo.ir",
     "185.8.173.148",
     "menunoo.ir",
-    "www.menunoo.ir"
+    "www.menunoo.ir",
 ]
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
-    "http://192.168.94.84:5173",
+    "http://nati.menono:5173",
+    "http://192.168.94.84:8000",
     "http://185.8.173.148",
     "http://api.menunoo.ir",
     "http://nati.menunoo.ir",
