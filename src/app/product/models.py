@@ -2,6 +2,8 @@ from django.db import models
 from django.utils.text import slugify
 from app.common.models import BaseModel
 from app.cafe.models import Cafe
+from Temp.image import optimize_image
+
 import uuid
 
 class Category(BaseModel):
@@ -49,6 +51,9 @@ class Product(BaseModel):
         return self.title
 
     def save(self, *args, **kwargs):
+        if self.image:
+            self.image = optimize_image(self.image)
+
         super().save(*args, **kwargs)
         
 class ProductVariant(BaseModel):

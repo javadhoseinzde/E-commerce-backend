@@ -60,7 +60,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://nati.menunoo.ir",
 ]
 
-لCSRF_TRUSTED_ORIGINS = [
+CSRF_TRUSTED_ORIGINS = [
     "http://185.8.173.148:8080",
     "http://185.8.173.148",
     "http://nati.menono:5173",
