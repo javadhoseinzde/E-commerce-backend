@@ -41,7 +41,11 @@ class Product(BaseModel):
     is_active = models.BooleanField(default=True)
     categories = models.ManyToManyField(Category, related_name="products", blank=True)
     image = models.ImageField(upload_to="products/")
-
+    original_image = models.ImageField(upload_to="products/originals/", null=True, blank=True)
+    crop_x = models.FloatField(null=True, blank=True)
+    crop_y = models.FloatField(null=True, blank=True)
+    crop_width = models.FloatField(null=True, blank=True)
+    crop_height = models.FloatField(null=True, blank=True)
     class Meta:
         verbose_name = 'Product'
         verbose_name_plural = "Products"
