@@ -1,8 +1,8 @@
+from uuid import uuid4
+import os
 from io import BytesIO
-
-from PIL import Image
 from django.core.files.base import ContentFile
-
+from PIL import Image
 
 def optimize_image(image_field, max_size=(1600, 1600), quality=80):
     img = Image.open(image_field)
@@ -23,6 +23,9 @@ def optimize_image(image_field, max_size=(1600, 1600), quality=80):
 
     output.seek(0)
 
-    filename = image_field.name.rsplit(".", 1)[0] + ".webp"
+    # ❌ فقط filename بدون path
+    original_name = os.path.splitext(os.path.basename(image_field.name))[0]
+
+    filename = f"{original_name}_{uuid4().hex[:8]}.webp"
 
     return ContentFile(output.read(), name=filename)
