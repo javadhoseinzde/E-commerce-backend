@@ -1,10 +1,11 @@
 from drf_spectacular.utils import extend_schema
+from django.db.models import Prefetch
 
 from rest_framework.response import Response
 from rest_framework.views import APIView 
 from rest_framework import status
 
-from .models import Category, Product, ProductImage, ProductVariant
+from .models import Category, Product, ProductImage, ProductVariant, ProductStatus
 from .serializer import CategorySerializer, ProductSerializer, ProductImageSerializer, ProductVariantSerializer
 from Temp.message import result_message
 from Temp.decorator import admin_required
@@ -22,26 +23,70 @@ from rest_framework.views import APIView
     request=CategorySerializer
 )
 class CategroyListAPIView(APIView):
-    
+
     def get_permissions(self):
         if self.request.method == "GET":
             return [AllowAny()]
-
         return [IsAuthenticated()]
-    
+
     def get(self, request):
         try:
-            category = Category.objects.filter(is_active=True, cafe__slug=request.cafe)
-            serializer = CategorySerializer(category, many=True, context={'request': request})
-            result = result_message("OK", status.HTTP_200_OK, serializer.data)
-            return Response(result, status=status.HTTP_200_OK) 
-        
-        except Category.DoesNotExist:
-            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, "Category not found.")
-            return Response(result, status=status.HTTP_400_BAD_REQUEST)
-    
+            cafe = Cafe.objects.get(slug=request.cafe)
+
+            is_member = (
+                request.user.is_authenticated
+                and CafeUser.objects.filter(
+                    cafe=cafe,
+                    user=request.user
+                ).exists()
+            )
+
+            products = Product.objects.all()
+
+            if not is_member:
+                products = products.exclude(status=ProductStatus.INACTIVE)
+
+            categories = (
+                Category.objects
+                .filter(
+                    is_active=True,
+                    cafe=cafe
+                )
+                .prefetch_related(
+                    Prefetch(
+                        "products",
+                        queryset=products
+                    )
+                )
+            )
+
+            serializer = CategorySerializer(
+                categories,
+                many=True,
+                context={"request": request},
+            )
+
+            result = result_message(
+                "OK",
+                status.HTTP_200_OK,
+                serializer.data,
+            )
+            return Response(result, status=status.HTTP_200_OK)
+
+        except Cafe.DoesNotExist:
+            result = result_message(
+                "ERROR",
+                status.HTTP_404_NOT_FOUND,
+                "Cafe not found."
+            )
+            return Response(result, status=status.HTTP_404_NOT_FOUND)
+
         except Exception as e:
-            result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            result = result_message(
+                "ERROR",
+                status.HTTP_400_BAD_REQUEST,
+                str(e),
+            )
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
 
     @admin_required
@@ -208,7 +253,7 @@ class ProductListAPIView(APIView):
     def get(self, request):
         try:
             cafe = request.cafe
-            product = Product.objects.filter(is_active=True, cafe__slug=cafe)
+            product = Product.objects.filter(cafe__slug=cafe)
 
             title = request.query_params.get('title')
             min_price = request.query_params.get('min_price')

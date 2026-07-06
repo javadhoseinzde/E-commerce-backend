@@ -38,13 +38,13 @@ environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 # See https://docs.djangoproject.com/en/4.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-_y+qlx00hnieg3qv_s!gz9w8%4dr&x0=nv)djm$s%g7pv962o='
+SECRET_KEY = env("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env("DEBUG")
 
 ALLOWED_HOSTS = [
-    "192.168.94.84",
+    "192.168.120.84",
     "nati.menono",
     "api.menunoo.ir",
     "185.8.173.148",
@@ -54,7 +54,7 @@ ALLOWED_HOSTS = [
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://nati.menono:5173",
-    "http://192.168.94.84:8000",
+    "http://192.168.120.84:8000",
     "http://185.8.173.148",
     "http://api.menunoo.ir",
     "http://nati.menunoo.ir",

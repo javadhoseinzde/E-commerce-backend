@@ -33,12 +33,22 @@ class Category(BaseModel):
         super().save(*args, **kwargs)
         
         
+class ProductStatus(models.TextChoices):
+    ACTIVE = "active", "فعال"
+    INACTIVE = "inactive", "غیرفعال"
+    UNAVAILABLE = "unavailable", "ناموجود"
+        
 class Product(BaseModel):
     cafe = models.ForeignKey(Cafe, on_delete=models.CASCADE, related_name='product', null=True, blank=True)
     title = models.CharField(max_length=250)
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=12, decimal_places=2)
-    is_active = models.BooleanField(default=True)
+    status = models.CharField(
+        max_length=20,
+        choices=ProductStatus.choices,
+        default=ProductStatus.ACTIVE,
+        db_index=True,
+    )    
     categories = models.ManyToManyField(Category, related_name="products", blank=True)
     image = models.ImageField(upload_to="products/")
     original_image = models.ImageField(upload_to="products/originals/", null=True, blank=True)
@@ -55,11 +65,11 @@ class Product(BaseModel):
         return self.title
 
     def save(self, *args, **kwargs):
-        if self.image:
+        if self.image and not self.pk:
             self.image = optimize_image(self.image)
 
         super().save(*args, **kwargs)
-        
+            
 class ProductVariant(BaseModel):
     cafe = models.ForeignKey(Cafe, on_delete=models.CASCADE, related_name='product_variant', null=True, blank=True)
     product = models.ForeignKey( Product, on_delete=models.CASCADE, related_name='variants')
