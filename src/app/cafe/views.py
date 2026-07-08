@@ -6,8 +6,8 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny
 
 from Temp.message import result_message
-from .models import Cafe, CafeUser
-from .serializer import CafeSerializer, CafeUserSerializer
+from .models import Cafe, CafeUser, Subscription, CafeInfo
+from .serializer import CafeSerializer, CafeUserSerializer, SubscriptionSerializer
 from Temp.decorator import admin_required
 
 @extend_schema(
@@ -208,6 +208,7 @@ class CafeUserDetailAPIView(APIView):
 
     @admin_required
     def delete(self, request, id):
+        
 
         try:
 
@@ -223,4 +224,57 @@ class CafeUserDetailAPIView(APIView):
 
         except Exception as e:
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        
+
+@extend_schema(
+    summary="Cafe subscription",
+    description="Get active subscription of cafe.",
+    responses={200: SubscriptionSerializer},
+)
+class CafeSubscriptionAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            print(request.cafe)
+            cafe = Cafe.objects.get(slug=request.cafe)
+            cafe_info = cafe.info
+
+            subscription = Subscription.objects.get(
+                cafe=cafe_info,
+                is_active=True
+            )
+            serializer = SubscriptionSerializer(subscription)
+
+            result = result_message(
+                "OK",
+                status.HTTP_200_OK,
+                serializer.data
+            )
+
+            return Response(result, status=status.HTTP_200_OK)
+
+        except Cafe.DoesNotExist:
+            result = result_message(
+                "ERROR",
+                status.HTTP_400_BAD_REQUEST,
+                "Cafe not found."
+            )
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+        except Subscription.DoesNotExist:
+            result = result_message(
+                "ERROR",
+                status.HTTP_400_BAD_REQUEST,
+                "Subscription not found."
+            )
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            result = result_message(
+                "ERROR",
+                status.HTTP_400_BAD_REQUEST,
+                f"An error occurred: {e}"
+            )
             return Response(result, status=status.HTTP_400_BAD_REQUEST)

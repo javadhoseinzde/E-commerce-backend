@@ -22,7 +22,7 @@ class MyUser(AbstractUser):
 
 class UserProfile(BaseModel):
     user = models.OneToOneField(get_user_model(), on_delete=models.CASCADE, related_name='profile')
-    birth_date = models.DateField(null=True, blank=True)
+    # birth_date = models.DateField(null=True, blank=True)
     full_name = models.CharField(max_length=15, blank=True, null=True)
     avatar = models.ImageField( upload_to='avatars/', blank=True, null=True)
     class Meta:

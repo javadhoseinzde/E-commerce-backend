@@ -7,9 +7,11 @@ class RegisterSerilizer(serializers.ModelSerializer):
         fields = ["mobile", "otp"]
         
 class UserProfileSerializer(serializers.ModelSerializer):
+    mobile = serializers.CharField(source="user.mobile", read_only=True)
+
     class Meta:
         model = UserProfile
-        fields = "__all__"
+        fields = ("full_name", "avatar", "mobile")
         read_only_fields = ('user',)
 
 class UserAddressSerializer(serializers.ModelSerializer):

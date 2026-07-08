@@ -262,12 +262,12 @@ class UserProfileAPIView(APIView):
             result = result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"An error occurred: {e}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
     
-    def put(self, request):
+    def patch(self, request):
         user = request.user.id
         try:
             
             query = UserProfile.objects.get(user=user)
-            serializer = UserProfileSerializer(query, data=request.data)
+            serializer = UserProfileSerializer(query, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
                 result = result_message("UPDATED",status.HTTP_200_OK,serializer.data)

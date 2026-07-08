@@ -28,7 +28,7 @@ class CafeInfo(BaseModel):
         verbose_name_plural = "Cafe Info"
 
     def __str__(self):
-        return self.cafe.title
+        return self.cafe.name
     
 class CafeUser(BaseModel):
     ROLE_CHOICES = (
@@ -58,11 +58,11 @@ class Plan(BaseModel):
         return self.title
     
 class Subscription(BaseModel):
-    cafe = models.ForeignKey(CafeInfo,on_delete=models.CASCADE,related_name="subscriptions")
+    cafe = models.ForeignKey(CafeInfo, on_delete=models.CASCADE,related_name="subscriptions")
     plan = models.ForeignKey(Plan,on_delete=models.PROTECT)
     start_date = models.DateField()
     end_date = models.DateField()
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"{self.cafe.title} - {self.plan.title}"
+        return f"{self.cafe.cafe.name} - {self.plan.title}"
