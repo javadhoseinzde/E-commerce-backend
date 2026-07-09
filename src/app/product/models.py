@@ -50,8 +50,7 @@ class Product(BaseModel):
         db_index=True,
     )    
     categories = models.ManyToManyField(Category, related_name="products", blank=True)
-    image = models.ImageField(upload_to="products/")
-    original_image = models.ImageField(upload_to="products/originals/", null=True, blank=True)
+    image = models.ImageField(upload_to="products/", null=True, blank=True)
     crop_x = models.FloatField(null=True, blank=True)
     crop_y = models.FloatField(null=True, blank=True)
     crop_width = models.FloatField(null=True, blank=True)
@@ -93,3 +92,7 @@ class ProductImage(BaseModel):
 
     def __str__(self):
         return f"{self.product.title}"
+    
+    
+    
+    
