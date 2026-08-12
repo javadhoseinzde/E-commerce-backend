@@ -50,6 +50,7 @@ ALLOWED_HOSTS = [
     "185.8.173.148",
     "menunoo.ir",
     "www.menunoo.ir",
+    "127.0.0.1"
 ]
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
@@ -76,7 +77,7 @@ LOCAL_APPS = [
     "app.order.apps.OrderConfig",
     "app.cart.apps.CartConfig",
     "app.cafe.apps.CafeConfig",
-    
+    "app.integration.apps.IntegrationConfig",
 ]
 
 THIRD_PARTY_APPS = [
@@ -221,6 +222,9 @@ SPECTACULAR_SETTINGS = SPECTACULAR_SETTINGS
 MINIO_ACCESS_KEY = env("MINIO_ACCESS_KEY")
 MINIO_SECRET_KEY = env("MINIO_SECRET_KEY")
 
+# Internal API Key for service-to-service communication
+INTERNAL_API_KEY = env("INTERNAL_API_KEY", default=None)
+
 
 STORAGES = {
     "default": {
@@ -249,3 +253,5 @@ AWS_S3_USE_SSL = False
 AWS_DEFAULT_ACL = None
 AWS_QUERYSTRING_AUTH = False
 
+
+INTERNAL_API_KEY = "kajsndajdkajlsjaa-asdjadhakj1o28-ajhdah"

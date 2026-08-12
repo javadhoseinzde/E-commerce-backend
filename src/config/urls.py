@@ -40,6 +40,9 @@ urlpatterns = [
     path("api/", include("app.order.urls")),
     path("api/", include("app.cafe.urls")),
     
+    # Internal integration API
+    path("api/internal/integration/", include("app.integration.urls")),
+    
     
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
