@@ -1,14 +1,19 @@
+import uuid
 from django.db import models
+from django.utils import timezone
 from app.common.models import BaseModel
 from app.users.models import MyUser
 
+
 class Cafe(BaseModel):
+    external_id = models.UUIDField(unique=True, db_index=True, default=uuid.uuid4)
     name = models.CharField(max_length=200)
     slug = models.SlugField(unique=True)
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
         return self.name
+
 
 class CafeInfo(BaseModel):
     cafe = models.OneToOneField(Cafe, on_delete=models.CASCADE, related_name="info")
@@ -29,7 +34,8 @@ class CafeInfo(BaseModel):
 
     def __str__(self):
         return self.cafe.name
-    
+
+
 class CafeUser(BaseModel):
     ROLE_CHOICES = (
         ("owner", "Owner"),
@@ -45,24 +51,91 @@ class CafeUser(BaseModel):
             "cafe",
             "user"
         )
-    
+
 
 class Plan(BaseModel):
+    """
+    Mirror representation of SaaS Plan.
+    SaaS is the source of truth; Core syncs this data for display/access control.
+    """
+    external_id = models.UUIDField(unique=True, db_index=True, default=uuid.uuid4)
+    slug = models.SlugField(max_length=100, unique=True)
     title = models.CharField(max_length=100)
     price = models.PositiveIntegerField()
     duration_days = models.PositiveIntegerField()
     max_products = models.PositiveIntegerField(default=100)
     is_active = models.BooleanField(default=True)
+    version = models.PositiveIntegerField(default=1)
 
     def __str__(self):
         return self.title
-    
+
+
 class Subscription(BaseModel):
-    cafe = models.ForeignKey(CafeInfo, on_delete=models.CASCADE,related_name="subscriptions")
-    plan = models.ForeignKey(Plan,on_delete=models.PROTECT)
-    start_date = models.DateField()
-    end_date = models.DateField()
-    is_active = models.BooleanField(default=True)
+    """
+    Mirror representation of SaaS Subscription.
+    SaaS is the source of truth; Core uses this for access control.
+    """
+    STATUS_CHOICES = (
+        ("PENDING", "Pending"),
+        ("ACTIVE", "Active"),
+        ("EXPIRED", "Expired"),
+        ("CANCELLED", "Cancelled"),
+    )
+    external_id = models.UUIDField(unique=True, db_index=True, default=uuid.uuid4)
+    cafe = models.ForeignKey(CafeInfo, on_delete=models.CASCADE, related_name="subscriptions")
+    plan = models.ForeignKey(Plan, on_delete=models.PROTECT)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="PENDING")
+    started_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    version = models.PositiveIntegerField(default=1)
+
+    # Legacy fields kept for backward compatibility
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "Subscription"
+        verbose_name_plural = "Subscriptions"
 
     def __str__(self):
-        return f"{self.cafe.cafe.name} - {self.plan.title}"
+        return f"{self.cafe.cafe.name} - {self.plan.title} ({self.status})"
+
+    @property
+    def is_subscription_active(self):
+        """
+        Check if this subscription is currently active.
+        """
+        return (
+            self.status == "ACTIVE"
+            and self.expires_at is not None
+            and self.expires_at > timezone.now()
+        )
+
+
+class SyncEvent(BaseModel):
+    """
+    Tracks processed synchronization events for idempotency.
+    Prevents duplicate processing of the same event.
+    """
+    event_id = models.UUIDField(unique=True, db_index=True, default=uuid.uuid4)
+    event_type = models.CharField(max_length=100)
+    subscription_external_id = models.UUIDField(null=True, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=(
+            ("PROCESSED", "Processed"),
+            ("FAILED", "Failed"),
+        ),
+        default="PROCESSED",
+    )
+    payload_hash = models.CharField(max_length=64, blank=True)
+    # processed_at is intentionally omitted: BaseModel.created_at serves the same purpose.
+
+    class Meta:
+        verbose_name = "Sync Event"
+        verbose_name_plural = "Sync Events"
+
+    def __str__(self):
+        return f"{self.event_type} ({self.event_id})"

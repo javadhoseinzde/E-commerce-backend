@@ -1,0 +1,1071 @@
+============================================================
+MENU NO CORE - SAAS INTEGRATION CONTRACT
+============================================================
+Single source of truth for SaaS developers integrating with MenuNo Core.
+Generated from the actual Core implementation. Last verified: 2026-08-16.
+============================================================
+
+
+TABLE OF CONTENTS
+-----------------
+ 1. Integration Overview
+ 2. Endpoint Specification
+ 3. HMAC Authentication
+ 4. Request JSON Schema
+ 5. Cafe Identification
+ 6. Plan Identification
+ 7. Subscription Activation
+ 8. Idempotency
+ 9. Amount and Currency
+10. Error Responses
+11. Retry Behavior
+12. Security Requirements
+13. Environment Variables
+14. Local Development Configuration
+15. Complete Request Example (curl)
+16. Response Examples
+17. Core Source Code Locations
+18. Current Implementation Status
+19. SaaS Implementation Checklist
+20. Implementation-Ready Contract Summary
+
+
+============================================================
+1. INTEGRATION OVERVIEW
+============================================================
+
+Architecture:
+
+    MenuNo SaaS
+        |
+        | HTTP POST (JSON body + HMAC headers)
+        v
+    MenuNo Core (Django + DRF)
+        |
+        | 1. CSRF exempt (server-to-server, no browser cookie)
+        | 2. HMAC-SHA256 signature verification
+        | 3. Timestamp freshness validation (5 min window)
+        | 4. Event ID idempotency check
+        | 5. Cafe lookup by external_id
+        | 6. Plan sync (create or update)
+        | 7. Subscription sync (create or update)
+        | 8. Response returned
+        v
+    200/201 success
+
+Data flow:
+- SaaS is the SOURCE OF TRUTH for billing and subscription state.
+- Core is the SOURCE OF TRUTH for cafe operational data.
+- Core maintains a lightweight MIRROR of SaaS Plan and Subscription
+  for access control (determining if a cafe has an active subscription).
+
+Supported event types:
+- subscription.activated
+- subscription.expired
+- subscription.cancelled
+- plan.synced
+
+Communication protocol: One-way HTTP POST from SaaS to Core.
+No response callbacks from Core to SaaS.
+
+
+============================================================
+2. ENDPOINT SPECIFICATION
+============================================================
+
+Method:     POST
+Full path:  /api/internal/core/sync/
+Content-Type: application/json
+
+Authentication: HMAC-SHA256 (see Section 3)
+CSRF: EXEMPT (decorator applied to this endpoint only)
+      All other endpoints retain Django CSRF protection.
+
+Required headers:
+  Content-Type:        application/json
+  X-Menuno-Event-Id:   UUID (v4) - unique per request
+  X-Menuno-Timestamp:  ISO-8601 datetime string
+  X-Menuno-Signature:  HMAC-SHA256 hex digest
+
+Success status codes:
+  201 CREATED   - new resource created
+  200 OK        - existing resource updated or duplicate event
+
+Response format:
+  {
+    "message": "CREATED" | "OK",
+    "status": 201 | 200,
+    "result": { ... }
+  }
+
+
+============================================================
+3. HMAC AUTHENTICATION
+============================================================
+
+Algorithm:
+  HMAC-SHA256(MENUNO_CORE_SYNC_SECRET, message)
+
+Message construction (exactly as implemented in Core):
+  message = timestamp_string + "." + raw_body_bytes
+
+Where:
+  timestamp_string = value of X-Menuno-Timestamp header (UTF-8 string)
+  raw_body_bytes   = the exact bytes of the HTTP request body
+
+Concrete implementation (Python):
+  message = (timestamp + ".").encode("utf-8") + raw_body
+  expected = hmac.new(
+      secret.encode("utf-8"),
+      message,
+      hashlib.sha256,
+  ).hexdigest()
+
+The SaaS must compute the signature identically.
+
+Signature encoding: lowercase hexadecimal (64 characters)
+Comparison: constant-time via hmac.compare_digest()
+
+
+--- Headers in detail ---
+
+X-Menuno-Event-Id
+  Type: UUID (v4 format)
+  Example: fdf7de65-06cd-4536-ba60-f1e736f522d8
+  Required: YES
+  Purpose: Idempotency - duplicate event IDs are safely ignored.
+  Must be unique per business event. Same event_id = same result.
+
+X-Menuno-Timestamp
+  Type: ISO-8601 datetime string
+  Format: YYYY-MM-DDTHH:MM:SS.ffffff+HH:MM (or with Z suffix)
+  Example: 2026-08-16T16:18:01.265961+00:00
+  Required: YES
+  Purpose: Replay attack prevention.
+  Tolerance: 300 seconds (5 minutes) drift from Core server time.
+  Core uses Django timezone.now() for comparison (timezone-aware).
+  Timestamps older than 5 minutes are rejected with 401.
+
+X-Menuno-Signature
+  Type: Hex string (64 characters)
+  Example: c86ec86f4ff72d8967978b69ea54f4d7d1ad366a6474608327f59a478c9f5595
+  Required: YES
+  Purpose: Proves the request came from someone who knows the shared secret.
+  Computed over: timestamp + "." + raw_body (as described above)
+
+--- Security notes ---
+
+- The raw request body bytes are used for signature verification.
+  The SaaS must sign the exact bytes it sends.
+  If using Python requests: sign(request.content), not request.text.
+
+- The secret MUST be identical on both SaaS and Core.
+  Never hardcode it. Use environment variables.
+
+- The secret MUST NOT be logged, transmitted in responses,
+  or included in version control.
+
+
+============================================================
+4. REQUEST JSON SCHEMA
+============================================================
+
+The Core endpoint accepts two payload shapes depending on event_type.
+
+--- Schema A: Subscription event ---
+
+{
+  "event_id":       "<UUID string, required>",
+  "event_type":     "<string, required>",
+  "subscription_id": "<UUID string, required>",
+  "cafe_id":        "<UUID string, required>",
+  "plan":           "<object, required>",
+  "status":         "<string, required>",
+  "started_at":     "<ISO-8601 string or null, optional>",
+  "expires_at":     "<ISO-8601 string or null, optional>",
+  "version":        "<integer, optional, default=1>",
+  "occurred_at":    "<ISO-8601 string, required>"
+}
+
+Field details:
+
+  event_id (UUID, required)
+    Unique event identifier for idempotency.
+    Same event_id sent twice = second request is a no-op.
+    Generated by SaaS per business event.
+
+  event_type (string, required)
+    Must be one of:
+      "subscription.activated"
+      "subscription.expired"
+      "subscription.cancelled"
+    Unknown values return 400.
+
+  subscription_id (UUID, required)
+    The stable cross-system identifier for this subscription.
+    Must match across all sync events for the same subscription.
+    Core stores this as Subscription.external_id (UUIDField, unique).
+
+  cafe_id (UUID, required)
+    The cafe's external_id (UUID) as created in Core.
+    Core looks up CafeInfo via: CafeInfo.objects.get(cafe__external_id=cafe_id)
+    If cafe is not found, returns 400.
+
+  plan (object, required)
+    Complete plan data. Core syncs this first before syncing the subscription.
+    See "Plan Object" below for required fields.
+
+  status (string, required)
+    Must be one of: "PENDING", "ACTIVE", "EXPIRED", "CANCELLED"
+    Core derives is_active from this: is_active = (status == "ACTIVE")
+
+  started_at (ISO-8601 string or null, optional)
+    When the subscription started.
+    If null, Core leaves existing value unchanged on update.
+
+  expires_at (ISO-8601 string or null, optional)
+    When the subscription expires.
+    If null, Core leaves existing value unchanged on update.
+
+  version (integer, optional, default=1)
+    Used for stale event prevention.
+    Core only updates if incoming_version >= current_version.
+    If incoming_version < current_version, the event is silently ignored.
+
+  occurred_at (ISO-8601 string, required)
+    When the event occurred in SaaS.
+    Used for logging. Not used for staleness check.
+
+
+--- Schema B: Plan event ---
+
+{
+  "event_id":    "<UUID string, required>",
+  "event_type":  "plan.synced",
+  "plan":        "<object, required>",
+  "occurred_at": "<ISO-8601 string, required>"
+}
+
+This syncs only a plan without a subscription.
+Used when a plan is created or updated in SaaS.
+
+
+--- Plan Object (required fields) ---
+
+{
+  "external_id":    "<UUID string, required>",
+  "slug":           "<string, required>",
+  "title":          "<string, required>",
+  "price":          "<integer, required>",
+  "duration_days":  "<integer, required>",
+  "max_products":   "<integer, optional, default=100>",
+  "is_active":      "<boolean, optional, default=true>",
+  "version":        "<integer, optional, default=1>"
+}
+
+Field details:
+
+  external_id (UUID, required)
+    Stable cross-system identifier for this plan.
+    Core stores this as Plan.external_id (UUIDField, unique).
+    Must be the same UUID across all sync events for the same plan.
+
+  slug (string, required)
+    URL-safe identifier. Core stores as SlugField (unique=True).
+    Example: "professional", "starter-monthly"
+
+  title (string, required)
+    Human-readable plan name.
+    Example: "Professional", "Starter Monthly"
+
+  price (integer, required)
+    Plan price in Rials (IRR).
+    NOT in Toman. See Section 9.
+    Example: 500000 means 500,000 Rials.
+
+  duration_days (integer, required)
+    Number of days the plan is valid.
+    Example: 30 for monthly, 365 for yearly.
+
+  max_products (integer, optional, default=100)
+    Maximum number of products allowed under this plan.
+
+  is_active (boolean, optional, default=true)
+    Whether the plan is currently active.
+
+  version (integer, optional, default=1)
+    Used for staleness prevention on plan updates.
+
+
+============================================================
+5. CAFE IDENTIFICATION
+============================================================
+
+Core identifies the cafe using cafe_id (UUID).
+
+Lookup path in Core:
+  CafeInfo.objects.select_related("cafe").get(
+      cafe__external_id=cafe_external_id
+  )
+
+This means:
+  cafe_id in the request = Cafe.external_id (UUIDField)
+
+The cafe MUST already exist in Core before a subscription sync.
+Cafes are created via a separate endpoint (POST /api/internal/integration/cafes/)
+using X-Internal-API-Key authentication.
+
+If cafe_id does not match any Cafe in Core:
+  Core returns 400: "Cafe with external_id {id} not found in Core"
+
+
+============================================================
+6. PLAN IDENTIFICATION
+============================================================
+
+Core identifies the plan using plan.external_id (UUIDField, unique=True).
+
+Plan sync happens BEFORE subscription sync within the same request.
+Core calls PlanSyncService.sync_plan(plan_data) first.
+
+Plan behavior:
+  - If plan with external_id exists: update fields (if version >= current)
+  - If plan with external_id does not exist: create new plan
+  - If incoming version < current version: silently ignore (no update)
+
+The plan MUST be included in every subscription sync request.
+The plan data in the subscription request is the source of truth.
+
+
+============================================================
+7. SUBSCRIPTION ACTIVATION
+============================================================
+
+After HMAC verification, timestamp check, and event_id check:
+
+1. Cafe lookup by cafe_id (external_id UUID)
+2. Plan sync (create or update plan from plan data)
+3. Event idempotency check:
+   - If event_id already exists in SyncEvent table:
+     Return existing subscription, status 200/201 (no changes made)
+4. Subscription sync:
+   - If subscription with external_id exists:
+     Update if incoming_version >= current_version
+     Fields updated: status, plan, started_at, expires_at, is_active, version
+   - If subscription does not exist:
+     Create new subscription with all provided fields
+
+is_active derivation:
+  is_active = (status == "ACTIVE")
+  This is computed by Core, not sent by SaaS.
+
+Legacy fields:
+  start_date and end_date are derived from started_at and expires_at.
+  start_date = started_at.date()
+  end_date = expires_at.date()
+
+Plan assignment:
+  Subscription.plan = the Plan synced from plan data in same request.
+  Plan is looked up by external_id after sync.
+
+Cafe assignment:
+  Subscription.cafe = the CafeInfo found via cafe_id.
+  Subscription is linked to CafeInfo (OneToOne), not Cafe directly.
+
+
+============================================================
+8. IDEMPOTENCY
+============================================================
+
+Event tracking table: SyncEvent
+  event_id: UUIDField (unique=True, db_index=True)
+  event_type: CharField(max_length=100)
+  subscription_external_id: UUIDField (nullable)
+  status: CharField ("PROCESSED" or "FAILED")
+  payload_hash: CharField (SHA-256 of str(payload))
+  created_at: from BaseModel
+
+Behavior:
+  1. Core attempts to INSERT a SyncEvent with the given event_id.
+  2. If the INSERT succeeds: event is new, process normally.
+  3. If the INSERT fails (IntegrityError due to unique constraint):
+     event is a duplicate, skip processing, return existing subscription.
+
+Duplicate response:
+  Core returns the existing subscription data with status 200 or 201.
+  The response is identical to a first-time request.
+  No error is returned for duplicate events.
+
+SaaS should ALWAYS use a unique event_id per business event.
+Examples of unique events:
+  - Payment success for subscription X
+  - Subscription X expired
+  - Subscription X cancelled
+  - Plan Y updated
+
+SaaS should NOT reuse event_ids across different events.
+
+
+============================================================
+9. AMOUNT AND CURRENCY
+============================================================
+
+Plan.price is stored as PositiveIntegerField.
+
+The price is in RIALS (IRR), NOT in Toman.
+
+Examples:
+  500000  = 500,000 Rials = 50,000 Toman
+  1000000 = 1,000,000 Rials = 100,000 Toman
+
+Core does NOT handle currency conversion.
+Core does NOT validate currency.
+Core stores the raw integer value sent by SaaS.
+
+SaaS must send the price in Rials when syncing a plan.
+
+
+============================================================
+10. ERROR RESPONSES
+============================================================
+
+All responses follow this format:
+  {
+    "message": "<string>",
+    "status": <integer>,
+    "result": <object or string>
+  }
+
+
+--- 400 BAD REQUEST ---
+
+Returned for:
+  - Unknown event_type
+  - Missing required fields in payload
+  - Invalid plan data (missing external_id, slug, etc.)
+  - Invalid status value (not in PENDING/ACTIVE/EXPIRED/CANCELLED)
+  - Cafe with given external_id not found in Core
+  - Missing or malformed JSON body
+
+Example:
+  {
+    "message": "ERROR",
+    "status": 400,
+    "result": {"error": "Cafe with external_id abc-123 not found in Core"}
+  }
+
+
+--- 401 UNAUTHORIZED ---
+
+Returned for:
+  - Missing X-Menuno-Signature header
+  - Missing X-Menuno-Timestamp header
+  - Missing X-Menuno-Event-Id header
+  - Invalid HMAC signature (secret mismatch or wrong body)
+  - Timestamp older than 300 seconds (5 minutes)
+  - Empty request body
+  - Invalid timestamp format (not ISO-8601)
+
+Example (invalid signature):
+  {
+    "detail": "Invalid HMAC signature."
+  }
+
+
+--- 403 FORBIDDEN ---
+
+This status is NOT returned by the CoreSyncAPIView itself.
+If you receive 403, it means CSRF middleware blocked the request.
+This indicates the request did not reach the view.
+Check that you are sending to /api/internal/core/sync/ (not a different path)
+and that CSRF cookie is not interfering.
+
+
+--- 404 NOT FOUND ---
+
+This status is NOT returned by the sync endpoint.
+If you receive 404, the URL path is incorrect.
+The correct path is: /api/internal/core/sync/
+
+
+--- 409 CONFLICT ---
+
+Not implemented. Duplicate events are handled via idempotency (200/201).
+
+
+--- 422 UNPROCESSABLE ENTITY ---
+
+Not implemented. Validation errors return 400.
+
+
+--- 500 INTERNAL SERVER ERROR ---
+
+Returned for unexpected server-side errors.
+SaaS should retry on 500.
+
+Example:
+  {
+    "message": "ERROR",
+    "status": 500,
+    "result": "Internal sync error"
+  }
+
+
+============================================================
+11. RETRY BEHAVIOR
+============================================================
+
+What to retry:
+  - 500 Internal Server Error (server-side failure)
+  - Connection timeout
+  - Connection refused
+  - Network errors
+
+What NOT to retry:
+  - 400 Bad Request (fix the payload first)
+  - 401 Unauthorized (fix authentication first)
+  - 403 Forbidden (check URL path and CSRF)
+  - 404 Not Found (check URL path)
+
+Retry strategy (recommended):
+  - Maximum 3 retries
+  - Exponential backoff: 1s, 2s, 4s
+  - Do NOT retry on 4xx errors
+  - Do NOT roll back payment/order on sync failure
+
+Idempotency safety:
+  Retrying the same request with the same event_id is safe.
+  Core will detect the duplicate and return the existing result.
+  No side effects on retry.
+
+Payment-safe design:
+  Core sync is called AFTER payment/order transaction commits.
+  If Core sync fails:
+    - Do NOT roll back the payment
+    - Do NOT mark payment as failed
+    - Do NOT mark order as failed
+    - Log the failure and retry later
+
+
+============================================================
+12. SECURITY REQUIREMENTS
+============================================================
+
+HMAC Authentication:
+  - SaaS and Core share MENUNO_CORE_SYNC_SECRET
+  - Signature is HMAC-SHA256(secret, timestamp + "." + raw_body)
+  - Constant-time comparison prevents timing attacks
+  - Signature is computed over raw body bytes, not parsed JSON
+
+Timestamp Validation:
+  - Must be within 300 seconds (5 minutes) of Core server time
+  - Prevents replay attacks: captured requests expire
+  - SaaS clock must be reasonably synchronized (NTP recommended)
+
+Replay Protection:
+  - Same event_id submitted twice = second request is a no-op
+  - SyncEvent table tracks all processed events
+  - No duplicate subscriptions or plans are created
+
+CSRF Behavior:
+  - CoreSyncAPIView is CSRF-exempt via @method_decorator(csrf_exempt)
+  - All other Core endpoints retain CSRF protection
+  - SaaS must NOT include CSRF cookies in requests
+
+Raw Request Body:
+  - HMAC signature is computed over the exact bytes sent
+  - SaaS must sign request.content, not request.text
+  - JSON serialization differences (whitespace, key order) will break the signature
+
+Secret Handling:
+  - MENUNO_CORE_SYNC_SECRET must be identical on SaaS and Core
+  - Must be stored in environment variables, not in code
+  - Must NOT be logged in application logs
+  - Must NOT be included in error messages or responses
+  - Rotate the secret periodically; during rotation, support both old and new
+
+Logging Restrictions:
+  - Do NOT log MENUNO_CORE_SYNC_SECRET
+  - Do NOT log the raw HMAC signature
+  - Safe to log: event_id, event_type, timestamp, status code
+
+
+============================================================
+13. ENVIRONMENT VARIABLES
+============================================================
+
+--- Core environment variables ---
+
+  MENUNO_CORE_SYNC_SECRET
+    Required: YES
+    Purpose: HMAC secret for verifying SaaS requests
+    Example: "c86ec86f4ff72d8967978b69ea54f4d7d1ad366a6474608327f59a478c9f5595"
+    Where: src/.env
+
+  INTERNAL_API_KEY
+    Required: YES (for other integration endpoints, not for CoreSyncAPIView)
+    Purpose: API key for internal service-to-service communication
+    Example: "kajsndajdkajlsjaa-asdjadhakj1o28-ajhdah"
+
+  SECRET_KEY
+    Required: YES
+    Purpose: Django secret key
+    Must NOT be the same as MENUNO_CORE_SYNC_SECRET
+
+  DEBUG
+    Required: YES
+    Purpose: Django debug mode
+    Set to False in production
+
+  POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_HOST, POSTGRES_PORT
+    Required: YES
+    Purpose: Database connection
+
+--- SaaS environment variables to configure ---
+
+  MENUNO_CORE_URL
+    Required: YES
+    Purpose: Base URL of Core server
+    Example (production): "https://api.menunoo.ir"
+    Example (local): "http://127.0.0.1:8002"
+
+  MENUNO_CORE_SYNC_SECRET
+    Required: YES
+    Purpose: HMAC secret for signing requests to Core
+    Must be IDENTICAL to Core's MENUNO_CORE_SYNC_SECRET
+    Example: "c86ec86f4ff72d8967978b69ea54f4d7d1ad366a6474608327f59a478c9f5595"
+
+  MENUNO_CORE_TIMEOUT
+    Required: NO (default: 10 seconds)
+    Purpose: HTTP timeout for Core API requests
+
+
+============================================================
+14. LOCAL DEVELOPMENT CONFIGURATION
+============================================================
+
+Core server:
+  URL:      http://127.0.0.1:8002
+  Command:  python manage.py runserver 8002
+
+SaaS server:
+  URL:      http://127.0.0.1:8000
+  Command:  python manage.py runserver 8000
+
+SaaS MENUNO_CORE_URL should be:
+  http://127.0.0.1:8002/api/internal/core
+
+Full sync endpoint URL:
+  http://127.0.0.1:8002/api/internal/core/sync/
+
+Both SaaS and Core must have identical MENUNO_CORE_SYNC_SECRET in their
+respective .env files.
+
+
+============================================================
+15. COMPLETE REQUEST EXAMPLE (curl)
+============================================================
+
+Note: This example uses a placeholder secret. Replace with actual shared secret.
+
+Step 1: Generate a UUID for event_id
+  event_id="fdf7de65-06cd-4536-ba60-f1e736f522d8"
+
+Step 2: Generate ISO-8601 timestamp
+  timestamp="2026-08-16T16:18:01.265961+00:00"
+
+Step 3: Build the JSON body
+  body='{"event_id":"fdf7de65-06cd-4536-ba60-f1e736f522d8","event_type":"subscription.activated","subscription_id":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","cafe_id":"11111111-2222-3333-4444-555555555555","plan":{"external_id":"99999999-8888-7777-6666-555555555555","slug":"professional","title":"Professional","price":500000,"duration_days":30},"status":"ACTIVE","started_at":"2026-08-16T16:18:01+00:00","expires_at":"2026-09-15T16:18:01+00:00","version":1,"occurred_at":"2026-08-16T16:18:01+00:00"}'
+
+Step 4: Compute the HMAC signature
+
+  Python:
+    import hmac, hashlib
+    secret = "YOUR_SECRET_HERE"  # Replace with actual secret
+    message = (timestamp + ".").encode("utf-8") + body.encode("utf-8")
+    signature = hmac.new(
+        secret.encode("utf-8"),
+        message,
+        hashlib.sha256,
+    ).hexdigest()
+
+  Bash:
+    secret="YOUR_SECRET_HERE"
+    timestamp="2026-08-16T16:18:01.265961+00:00"
+    body='{"event_id":"fdf7de65-06cd-4536-ba60-f1e736f522d8",...}'
+    signature=$(echo -n "${timestamp}.${body}" | openssl dgst -sha256 -hmac "$secret" | awk '{print $2}')
+
+Step 5: Send the request
+
+  curl -X POST \
+    http://127.0.0.1:8002/api/internal/core/sync/ \
+    -H "Content-Type: application/json" \
+    -H "X-Menuno-Event-Id: fdf7de65-06cd-4536-ba60-f1e736f522d8" \
+    -H "X-Menuno-Timestamp: 2026-08-16T16:18:01.265961+00:00" \
+    -H "X-Menuno-Signature: COMPUTED_SIGNATURE_HERE" \
+    -d '{"event_id":"fdf7de65-06cd-4536-ba60-f1e736f522d8","event_type":"subscription.activated","subscription_id":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","cafe_id":"11111111-2222-3333-4444-555555555555","plan":{"external_id":"99999999-8888-7777-6666-555555555555","slug":"professional","title":"Professional","price":500000,"duration_days":30},"status":"ACTIVE","started_at":"2026-08-16T16:18:01+00:00","expires_at":"2026-09-15T16:18:01+00:00","version":1,"occurred_at":"2026-08-16T16:18:01+00:00"}'
+
+IMPORTANT NOTES FOR CURL:
+  - The -d flag sends the body as-is. Do not reformat the JSON.
+  - The signature must be computed over the EXACT bytes sent by curl.
+  - Do NOT include a CSRF cookie.
+  - Do NOT include an Authorization header.
+
+
+============================================================
+16. RESPONSE EXAMPLES
+============================================================
+
+--- Successful subscription activation (new) ---
+
+  HTTP/1.1 201 CREATED
+  Content-Type: application/json
+
+  {
+    "message": "CREATED",
+    "status": 201,
+    "result": {
+      "id": 42,
+      "external_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "status": "ACTIVE",
+      "version": 1,
+      "created": true,
+      "plan_external_id": "99999999-8888-7777-6666-555555555555"
+    }
+  }
+
+
+--- Successful subscription update ---
+
+  HTTP/1.1 200 OK
+  Content-Type: application/json
+
+  {
+    "message": "OK",
+    "status": 200,
+    "result": {
+      "id": 42,
+      "external_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "status": "EXPIRED",
+      "version": 2,
+      "created": false,
+      "plan_external_id": "99999999-8888-7777-6666-555555555555"
+    }
+  }
+
+
+--- Duplicate event (idempotent) ---
+
+  HTTP/1.1 200 OK (or 201 CREATED)
+  Content-Type: application/json
+
+  {
+    "message": "OK",
+    "status": 200,
+    "result": {
+      "id": 42,
+      "external_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "status": "ACTIVE",
+      "version": 1,
+      "created": false,
+      "plan_external_id": "99999999-8888-7777-6666-555555555555"
+    }
+  }
+
+
+--- Invalid signature ---
+
+  HTTP/1.1 401 Unauthorized
+  Content-Type: application/json
+
+  {
+    "detail": "Invalid HMAC signature."
+  }
+
+
+--- Expired timestamp ---
+
+  HTTP/1.1 401 Unauthorized
+  Content-Type: application/json
+
+  {
+    "detail": "Request timestamp expired. Drift: 312s, max allowed: 300s."
+  }
+
+
+--- Invalid payload (missing fields) ---
+
+  HTTP/1.1 400 Bad Request
+  Content-Type: application/json
+
+  {
+    "message": "ERROR",
+    "status": 400,
+    "result": {
+      "plan": ["Plan data missing required field: slug"]
+    }
+  }
+
+
+--- Cafe not found ---
+
+  HTTP/1.1 400 Bad Request
+  Content-Type: application/json
+
+  {
+    "message": "ERROR",
+    "status": 400,
+    "result": "Cafe with external_id 11111111-2222-3333-4444-555555555555 not found in Core"
+  }
+
+
+--- Missing HMAC header ---
+
+  HTTP/1.1 401 Unauthorized
+  Content-Type: application/json
+
+  {
+    "detail": "Missing X-Menuno-Signature header."
+  }
+
+
+--- Unknown event_type ---
+
+  HTTP/1.1 400 Bad Request
+  Content-Type: application/json
+
+  {
+    "message": "ERROR",
+    "status": 400,
+    "result": "Unknown event_type: subscription.renewed"
+  }
+
+
+============================================================
+17. CORE SOURCE CODE LOCATIONS
+============================================================
+
+All paths are relative to Core project root (src/).
+
+URL routing:
+  config/urls.py
+    Line 48: path("api/internal/core/sync/", CoreSyncAPIView.as_view())
+    Line 44: path("api/internal/integration/", include("app.integration.urls"))
+
+Sync endpoint view:
+  app/integration/views_sync.py
+    Line 357-523: class CoreSyncAPIView(APIView)
+      Line 375: authentication_classes = [HmacSyncAuthentication]
+      Line 417: def post(self, request) - routes by event_type
+      Line 420: plan.synced -> _sync_plan()
+      Line 422: subscription.* -> _sync_subscription()
+      Line 430: def _sync_plan(self, request)
+      Line 440: PlanSyncService.sync_plan(plan_data)
+      Line 470: def _sync_subscription(self, request)
+      Line 489: SubscriptionSyncService.sync_subscription(...)
+      Decorator: @method_decorator(csrf_exempt, name='dispatch')
+
+HMAC authentication:
+  Temp/internal_auth.py
+    Line 49-134: class HmacSyncAuthentication(BaseAuthentication)
+      Line 64: MAX_TIMESTAMP_DRIFT_SECONDS = 300
+      Line 66: def authenticate(self, request)
+      Line 116: message = (timestamp + ".").encode("utf-8") + raw_body
+      Line 117: expected = hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
+      Line 123: hmac.compare_digest(signature, expected)
+
+Serializers (request validation):
+  app/integration/serializer.py
+    Line 124: class PlanSyncRequestSerializer
+    Line 162: class SubscriptionSyncRequestSerializer
+    Line 209: validate_plan() - checks required plan fields
+
+Subscription sync service:
+  app/cafe/sync_services.py
+    Line 124: def sync_subscription(...)
+    Line 170: _find_cafe_by_external_id(cafe_external_id)
+    Line 174: PlanSyncService.sync_plan(plan_data)
+    Line 181: is_active = incoming_status == "ACTIVE"
+    Line 183-260: transaction with version check and upsert
+    Line 278: def _record_sync_event(...) - idempotency tracking
+
+Plan sync service:
+  app/cafe/sync_services.py
+    Line 24: class PlanSyncService
+    Line 37: def sync_plan(plan_data)
+    Line 64: external_id = uuid.UUID(str(plan_data["external_id"]))
+    Line 73: version check: incoming_version < existing_plan.version
+    Line 93-106: create new plan if DoesNotExist
+
+Models:
+  app/cafe/models.py
+    Line 8: class Cafe(BaseModel) - external_id, name, slug, is_active
+    Line 18: class CafeInfo(BaseModel) - cafe OneToOne
+    Line 56: class Plan(BaseModel) - external_id, slug, title, price, etc.
+    Line 74: class Subscription(BaseModel) - external_id, cafe FK, plan FK, status, etc.
+    Line 117: class SyncEvent(BaseModel) - event_id (unique), event_type, etc.
+
+Configuration:
+  config/settings.py
+    Line 257: INTERNAL_API_KEY = "..."
+    Line 259-260: MENUNO_CORE_SYNC_SECRET = env("MENUNO_CORE_SYNC_SECRET", default="...")
+    Line 108: 'django.middleware.csrf.CsrfViewMiddleware' in MIDDLEWARE
+
+Environment:
+  src/.env
+    MENUNO_CORE_SYNC_SECRET="..." (the actual HMAC secret)
+
+
+============================================================
+18. CURRENT IMPLEMENTATION STATUS
+============================================================
+
+IMPLEMENTED (Core side):
+  [x] POST /api/internal/core/sync/ endpoint
+  [x] HMAC-SHA256 authentication with constant-time comparison
+  [x] Timestamp freshness validation (300s window)
+  [x] Event ID idempotency via SyncEvent table
+  [x] CSRF exemption for this endpoint only
+  [x] Plan sync (create/update with version check)
+  [x] Subscription sync (create/update with version check)
+  [x] cafe_id lookup (UUID -> CafeInfo via Cafe.external_id)
+  [x] Status validation (PENDING/ACTIVE/EXPIRED/CANCELLED)
+  [x] is_active derivation (status == "ACTIVE")
+  [x] Legacy date field sync (start_date, end_date)
+  [x] Transaction-safe concurrent request handling
+  [x] Stale event prevention (version-based)
+  [x] Comprehensive test suite (30+ tests)
+  [x] OpenAPI schema for documentation
+
+SAAS MUST IMPLEMENT:
+  [ ] Configure MENUNO_CORE_URL (Core server base URL)
+  [ ] Configure MENUNO_CORE_SYNC_SECRET (same as Core)
+  [ ] Generate unique event_id per business event (UUID v4)
+  [ ] Generate ISO-8601 timestamp
+  [ ] Compute HMAC-SHA256 signature: hmac.new(secret, timestamp + "." + body, sha256).hexdigest()
+  [ ] Send POST with headers: X-Menuno-Event-Id, X-Menuno-Timestamp, X-Menuno-Signature
+  [ ] Send JSON body with event_type, subscription_id, cafe_id, plan, status, etc.
+  [ ] Handle 200/201 success
+  [ ] Handle duplicate event (same event_id) - treat as success
+  [ ] Retry on 5xx and network errors (max 3, exponential backoff)
+  [ ] Do NOT retry on 4xx errors
+  [ ] Do NOT roll back payment on sync failure
+
+NOT IMPLEMENTED:
+  [ ] Webhook/callback from Core to SaaS on subscription changes
+  [ ] Bulk subscription sync endpoint
+  [ ] Plan deletion sync (Core only updates, never deletes plans)
+  [ ] Subscription deletion (Core only updates status, never deletes)
+  [ ] Real-time subscription status query via HMAC (only via X-Internal-API-Key)
+
+
+============================================================
+19. SAAS IMPLEMENTATION CHECKLIST
+============================================================
+
+Phase 1: Configuration
+  [ ] Set MENUNO_CORE_URL in SaaS environment
+  [ ] Set MENUNO_CORE_SYNC_SECRET in SaaS environment (same as Core)
+  [ ] Verify MENUNO_CORE_SYNC_SECRET matches Core's .env value
+  [ ] Set HTTP timeout (recommended: 10 seconds)
+
+Phase 2: Signature Implementation
+  [ ] Implement HMAC-SHA256 signature generation
+  [ ] Sign timestamp + "." + raw_body_bytes (not parsed JSON)
+  [ ] Use lowercase hex encoding (64 characters)
+  [ ] Test signature generation against known vectors
+
+Phase 3: Request Building
+  [ ] Generate UUID v4 for event_id
+  [ ] Generate ISO-8601 timestamp with timezone
+  [ ] Build JSON payload with required fields
+  [ ] Set Content-Type: application/json
+  [ ] Set X-Menuno-Event-Id header
+  [ ] Set X-Menuno-Timestamp header
+  [ ] Set X-Menuno-Signature header
+
+Phase 4: Error Handling
+  [ ] Handle 200/201 as success
+  [ ] Handle duplicate event (same event_id) as success
+  [ ] Handle 400 - log error, fix payload, do not retry
+  [ ] Handle 401 - check signature and timestamp, do not retry
+  [ ] Handle 500 - retry up to 3 times with backoff
+  [ ] Handle network errors - retry up to 3 times with backoff
+  [ ] Do NOT roll back payment on any sync failure
+
+Phase 5: Testing
+  [ ] Test with valid HMAC request -> 201
+  [ ] Test duplicate event_id -> same response (idempotent)
+  [ ] Test invalid signature -> 401
+  [ ] Test expired timestamp -> 401
+  [ ] Test missing header -> 401
+  [ ] Test invalid payload -> 400
+  [ ] Test cafe not found -> 400
+  [ ] Test without CSRF cookie -> must NOT get 403
+  [ ] Test retry on 500 -> succeeds after retry
+
+
+============================================================
+20. SAAS -> CORE IMPLEMENTATION-READY CONTRACT
+============================================================
+
+ENDPOINT:
+  POST http://{CORE_HOST}/api/internal/core/sync/
+
+HEADERS:
+  Content-Type: application/json
+  X-Menuno-Event-Id: {UUID}
+  X-Menuno-Timestamp: {ISO-8601}
+  X-Menuno-Signature: {HMAC-SHA256 hex}
+
+SIGNATURE ALGORITHM:
+  message = (timestamp + ".").encode("utf-8") + raw_body_bytes
+  signature = hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
+
+SUBSCRIPTION PAYLOAD:
+  {
+    "event_id": "{UUID}",
+    "event_type": "subscription.activated" | "subscription.expired" | "subscription.cancelled",
+    "subscription_id": "{UUID}",
+    "cafe_id": "{cafe_external_id UUID}",
+    "plan": {
+      "external_id": "{UUID}",
+      "slug": "{string}",
+      "title": "{string}",
+      "price": {integer_in_rials},
+      "duration_days": {integer}
+    },
+    "status": "ACTIVE" | "EXPIRED" | "CANCELLED",
+    "started_at": "{ISO-8601}",
+    "expires_at": "{ISO-8601}",
+    "version": {integer},
+    "occurred_at": "{ISO-8601}"
+  }
+
+PLAN-ONLY PAYLOAD:
+  {
+    "event_id": "{UUID}",
+    "event_type": "plan.synced",
+    "plan": {
+      "external_id": "{UUID}",
+      "slug": "{string}",
+      "title": "{string}",
+      "price": {integer_in_rials},
+      "duration_days": {integer}
+    },
+    "occurred_at": "{ISO-8601}"
+  }
+
+SUCCESS: 200 or 201
+DUPLICATE: 200 or 201 (same as success)
+INVALID PAYLOAD: 400
+AUTH FAILURE: 401
+SERVER ERROR: 500 (retryable)
+
+RETRY: 5xx and network errors only, max 3 attempts, exponential backoff.
+DO NOT RETRY: 4xx errors.
+DO NOT ROLL BACK: payment/order on sync failure.
+
+============================================================
+END OF CONTRACT
+============================================================

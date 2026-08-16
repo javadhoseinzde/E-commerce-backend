@@ -1,6 +1,8 @@
 """
 Internal integration API views.
 """
+import logging
+
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -9,13 +11,26 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter
 from Temp.internal_auth import InternalApiKeyAuthentication
 from Temp.message import result_message
 from app.users.models import MyUser
+from app.cafe.sync_services import (
+    PlanSyncService,
+    SubscriptionSyncService,
+    SubscriptionAccessService,
+)
 from .serializer import (
     CustomerResolveRequestSerializer,
     CustomerResolveResponseSerializer,
     CafeCreationRequestSerializer,
-    CafeCreationResponseSerializer
+    CafeCreationResponseSerializer,
+    PlanSyncRequestSerializer,
+    PlanSyncResponseSerializer,
+    SubscriptionSyncRequestSerializer,
+    SubscriptionSyncResponseSerializer,
+    SubscriptionAccessCheckRequestSerializer,
+    SubscriptionAccessCheckResponseSerializer,
 )
 from .services import CustomerResolutionService, CafeCreationService
+
+logger = logging.getLogger(__name__)
 
 
 class CustomerResolveAPIView(APIView):

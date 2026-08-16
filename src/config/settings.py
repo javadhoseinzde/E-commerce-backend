@@ -255,3 +255,6 @@ AWS_QUERYSTRING_AUTH = False
 
 
 INTERNAL_API_KEY = "kajsndajdkajlsjaa-asdjadhakj1o28-ajhdah"
+
+# HMAC secret for SaaS → Core sync (server-to-server authentication)
+MENUNO_CORE_SYNC_SECRET = env("MENUNO_CORE_SYNC_SECRET", default="menuno-core-sync-secret-change-in-production")

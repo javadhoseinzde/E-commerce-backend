@@ -15,7 +15,6 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from django.urls import include, path
 from rest_framework_simplejwt.views import *
 from drf_spectacular.views import (
     SpectacularAPIView,
@@ -25,6 +24,7 @@ from drf_spectacular.views import (
 
 from django.conf import settings
 from django.conf.urls.static import static
+from app.integration.views_sync import CoreSyncAPIView
 
 
 urlpatterns = [
@@ -33,17 +33,20 @@ urlpatterns = [
     path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("api/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
-    
+
     path("api/", include("app.users.urls")),
     path("api/", include("app.product.urls")),
     path("api/", include("app.cart.urls")),
     path("api/", include("app.order.urls")),
     path("api/", include("app.cafe.urls")),
-    
-    # Internal integration API
+
+    # Internal integration API (X-Internal-API-Key auth)
     path("api/internal/integration/", include("app.integration.urls")),
-    
-    
+
+    # SaaS → Core sync (HMAC-authenticated, CSRF-exempt)
+    # Matches the URL the SaaS client sends to
+    path("api/internal/core/sync/", CoreSyncAPIView.as_view(), name="core-sync"),
+
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
     path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
