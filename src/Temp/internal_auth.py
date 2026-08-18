@@ -4,8 +4,11 @@ Uses X-Internal-API-Key header for authentication.
 """
 import hmac
 import hashlib
+import logging
 from rest_framework import authentication, exceptions
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 
 class InternalApiKeyAuthentication(authentication.BaseAuthentication):
@@ -88,16 +91,26 @@ class HmacSyncAuthentication(authentication.BaseAuthentication):
             )
 
         # Validate timestamp freshness
+        import datetime as _dt
         from django.utils.dateparse import parse_datetime
         from django.utils import timezone
-        from datetime import timedelta
 
         ts = parse_datetime(timestamp)
         if ts is None:
             raise exceptions.AuthenticationFailed(
                 'Invalid X-Menuno-Timestamp format. Must be ISO-8601.'
             )
+
+        # Ensure both datetimes are timezone-aware for safe subtraction.
+        # parse_datetime returns aware when input has +HH:MM, but
+        # timezone.now() can be naive when USE_TZ=False.
+        _utc = _dt.timezone.utc
+        if timezone.is_naive(ts):
+            ts = timezone.make_aware(ts, _utc)
         now = timezone.now()
+        if timezone.is_naive(now):
+            now = timezone.make_aware(now, _utc)
+
         drift = abs((now - ts).total_seconds())
         if drift > self.MAX_TIMESTAMP_DRIFT_SECONDS:
             raise exceptions.AuthenticationFailed(
@@ -119,6 +132,17 @@ class HmacSyncAuthentication(authentication.BaseAuthentication):
             message,
             hashlib.sha256,
         ).hexdigest()
+
+        # Safe diagnostic logging (no secrets exposed)
+        logger.info(
+            "HMAC auth diagnostic: secret_configured=%s, secret_length=%d, "
+            "received_sig_length=%d, expected_sig_length=%d, sig_match=%s",
+            bool(secret),
+            len(secret) if secret else 0,
+            len(signature),
+            len(expected),
+            hmac.compare_digest(signature, expected),
+        )
 
         if not hmac.compare_digest(signature, expected):
             raise exceptions.AuthenticationFailed(

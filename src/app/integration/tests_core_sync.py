@@ -603,3 +603,342 @@ class RegressionTest(CoreSyncTestBase):
             'django.middleware.csrf.CsrfViewMiddleware',
             settings.MIDDLEWARE,
         )
+
+
+class TimezoneHandlingTest(CoreSyncTestBase):
+    """
+    Tests for timezone-aware datetime handling in HMAC authentication.
+
+    Regression: TypeError: can't subtract offset-naive and offset-aware datetimes.
+    Caused by USE_TZ=False making timezone.now() naive while parse_datetime()
+    returns aware for ISO-8601 strings with timezone offsets.
+    """
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_valid_timestamp_with_plus_zero_offset_accepted(self):
+        """ISO-8601 timestamp with +00:00 → accepted."""
+        payload = self.make_plan_payload()
+        now_utc = timezone.now()
+        # Manually build the ISO-8601 string with explicit +00:00
+        ts_str = now_utc.strftime('%Y-%m-%dT%H:%M:%S.%f+00:00')
+
+        response = self.sign_and_send(payload, timestamp=ts_str)
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_200_OK, status.HTTP_201_CREATED],
+        )
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_valid_timestamp_with_positive_offset_accepted(self):
+        """ISO-8601 timestamp with +05:30 → correctly normalized and compared."""
+        payload = self.make_plan_payload()
+        now_utc = timezone.now()
+        # Build a timestamp that is 5h30m AHEAD of UTC (so it's 5h30m earlier in UTC)
+        from datetime import timezone as dt_timezone
+        plus_530 = dt_timezone(timedelta(hours=5, minutes=30))
+        ts_dt = now_utc.replace(tzinfo=None).astimezone(plus_530)
+        ts_str = ts_dt.strftime('%Y-%m-%dT%H:%M:%S.%f+05:30')
+
+        response = self.sign_and_send(payload, timestamp=ts_str)
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_200_OK, status.HTTP_201_CREATED],
+        )
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_valid_timestamp_with_negative_offset_accepted(self):
+        """ISO-8601 timestamp with -08:00 → correctly normalized and compared."""
+        payload = self.make_plan_payload()
+        now_utc = timezone.now()
+        from datetime import timezone as dt_timezone
+        minus_8 = dt_timezone(timedelta(hours=-8))
+        ts_dt = now_utc.replace(tzinfo=None).astimezone(minus_8)
+        ts_str = ts_dt.strftime('%Y-%m-%dT%H:%M:%S.%f-08:00')
+
+        response = self.sign_and_send(payload, timestamp=ts_str)
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_200_OK, status.HTTP_201_CREATED],
+        )
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_timestamp_without_offset_treated_as_utc(self):
+        """ISO-8601 timestamp without timezone → treated as UTC (naive → aware)."""
+        payload = self.make_plan_payload()
+        now_utc = timezone.now()
+        ts_str = now_utc.strftime('%Y-%m-%dT%H:%M:%S.%f')
+
+        response = self.sign_and_send(payload, timestamp=ts_str)
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_200_OK, status.HTTP_201_CREATED],
+        )
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_expired_timestamp_rejected(self):
+        """Timestamp 10 minutes old → rejected (beyond 5 min drift)."""
+        payload = self.make_plan_payload()
+        old_ts = (timezone.now() - timedelta(minutes=10)).isoformat()
+
+        response = self.sign_and_send(payload, timestamp=old_ts)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_future_timestamp_outside_tolerance_rejected(self):
+        """Timestamp 10 minutes in the future → rejected."""
+        payload = self.make_plan_payload()
+        future_ts = (timezone.now() + timedelta(minutes=10)).isoformat()
+
+        response = self.sign_and_send(payload, timestamp=future_ts)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_malformed_timestamp_rejected(self):
+        """Malformed timestamp string → 401."""
+        payload = self.make_plan_payload()
+        raw_body = json.dumps(payload).encode("utf-8")
+        bad_ts = "not-a-timestamp"
+        signature = make_hmac_signature(self.secret, bad_ts, raw_body)
+
+        headers = {
+            "HTTP_X_MENUNO_SIGNATURE": signature,
+            "HTTP_X_MENUNO_TIMESTAMP": bad_ts,
+            "HTTP_X_MENUNO_EVENT_ID": payload["event_id"],
+        }
+        response = self.client.post(self.url, data=raw_body, content_type="application/json", **headers)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_missing_timestamp_rejected(self):
+        """Missing X-Menuno-Timestamp → 401."""
+        payload = self.make_plan_payload()
+        raw_body = json.dumps(payload).encode("utf-8")
+        signature = make_hmac_signature(self.secret, "dummy-ts", raw_body)
+
+        headers = {
+            "HTTP_X_MENUNO_SIGNATURE": signature,
+            "HTTP_X_MENUNO_EVENT_ID": payload["event_id"],
+        }
+        response = self.client.post(self.url, data=raw_body, content_type="application/json", **headers)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_valid_hmac_and_valid_timestamp_succeeds(self):
+        """Valid HMAC signature + valid timestamp → 200/201."""
+        payload = self.make_plan_payload()
+
+        response = self.sign_and_send(payload)
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_200_OK, status.HTTP_201_CREATED],
+        )
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_invalid_hmac_rejected(self):
+        """Invalid HMAC signature → 401 regardless of valid timestamp."""
+        payload = self.make_plan_payload()
+
+        response = self.sign_and_send(payload, secret="wrong-secret-key")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class HmacSecurityTests(CoreSyncTestBase):
+    """Focused security tests for HMAC authentication."""
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_correct_secret_and_signature_accepted(self):
+        """Correct secret + correct signature → 200/accepted."""
+        payload = self.make_plan_payload()
+
+        response = self.sign_and_send(payload)
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_200_OK, status.HTTP_201_CREATED],
+        )
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_wrong_secret_rejected(self):
+        """Wrong secret → 401."""
+        payload = self.make_plan_payload()
+
+        response = self.sign_and_send(payload, secret="completely-wrong-secret")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_modified_body_rejected(self):
+        """Modified body after signing → 401."""
+        payload = self.make_plan_payload()
+        timestamp = timezone.now().isoformat()
+        raw_body = json.dumps(payload).encode("utf-8")
+        signature = make_hmac_signature(self.secret, timestamp, raw_body)
+
+        # Send with modified body (different content)
+        modified_payload = payload.copy()
+        modified_payload["price"] = 999999
+        modified_body = json.dumps(modified_payload).encode("utf-8")
+
+        headers = {
+            "HTTP_X_MENUNO_SIGNATURE": signature,
+            "HTTP_X_MENUNO_TIMESTAMP": timestamp,
+            "HTTP_X_MENUNO_EVENT_ID": payload["event_id"],
+        }
+
+        response = self.client.post(
+            self.url,
+            data=modified_body,
+            content_type="application/json",
+            **headers,
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_modified_timestamp_rejected(self):
+        """Modified timestamp after signing → 401."""
+        payload = self.make_plan_payload()
+        timestamp = timezone.now().isoformat()
+        raw_body = json.dumps(payload).encode("utf-8")
+        signature = make_hmac_signature(self.secret, timestamp, raw_body)
+
+        # Send with different timestamp
+        modified_timestamp = (timezone.now() + timedelta(seconds=10)).isoformat()
+
+        headers = {
+            "HTTP_X_MENUNO_SIGNATURE": signature,
+            "HTTP_X_MENUNO_TIMESTAMP": modified_timestamp,
+            "HTTP_X_MENUNO_EVENT_ID": payload["event_id"],
+        }
+
+        response = self.client.post(
+            self.url,
+            data=raw_body,
+            content_type="application/json",
+            **headers,
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_modified_event_id_rejected(self):
+        """Modified event_id after signing → 401 (signature includes full body with event_id)."""
+        payload = self.make_plan_payload()
+        timestamp = timezone.now().isoformat()
+        raw_body = json.dumps(payload).encode("utf-8")
+        signature = make_hmac_signature(self.secret, timestamp, raw_body)
+
+        # Modify event_id in payload
+        modified_payload = payload.copy()
+        modified_payload["event_id"] = str(uuid.uuid4())
+        modified_body = json.dumps(modified_payload).encode("utf-8")
+
+        headers = {
+            "HTTP_X_MENUNO_SIGNATURE": signature,
+            "HTTP_X_MENUNO_TIMESTAMP": timestamp,
+            "HTTP_X_MENUNO_EVENT_ID": modified_payload["event_id"],
+        }
+
+        response = self.client.post(
+            self.url,
+            data=modified_body,
+            content_type="application/json",
+            **headers,
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_missing_signature_rejected(self):
+        """Missing X-Menuno-Signature → 401."""
+        payload = self.make_plan_payload()
+        raw_body = json.dumps(payload).encode("utf-8")
+        timestamp = timezone.now().isoformat()
+
+        headers = {
+            "HTTP_X_MENUNO_TIMESTAMP": timestamp,
+            "HTTP_X_MENUNO_EVENT_ID": payload["event_id"],
+        }
+
+        response = self.client.post(
+            self.url,
+            data=raw_body,
+            content_type="application/json",
+            **headers,
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_malformed_signature_rejected(self):
+        """Malformed signature → 401."""
+        payload = self.make_plan_payload()
+        timestamp = timezone.now().isoformat()
+
+        headers = {
+            "HTTP_X_MENUNO_SIGNATURE": "not-a-valid-hex-signature",
+            "HTTP_X_MENUNO_TIMESTAMP": timestamp,
+            "HTTP_X_MENUNO_EVENT_ID": payload["event_id"],
+        }
+
+        response = self.client.post(
+            self.url,
+            data=json.dumps(payload).encode("utf-8"),
+            content_type="application/json",
+            **headers,
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_expired_timestamp_rejected(self):
+        """Expired timestamp → 401."""
+        payload = self.make_plan_payload()
+        old_timestamp = (timezone.now() - timedelta(minutes=10)).isoformat()
+
+        response = self.sign_and_send(payload, timestamp=old_timestamp)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_valid_timestamp_accepted(self):
+        """Valid timestamp → accepted."""
+        payload = self.make_plan_payload()
+
+        response = self.sign_and_send(payload)
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_200_OK, status.HTTP_201_CREATED],
+        )
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_valid_request_without_csrf_cookie_accepted(self):
+        """Valid request without CSRF cookie → accepted (server-to-server)."""
+        self.client.cookies.clear()
+        payload = self.make_plan_payload()
+
+        response = self.sign_and_send(payload)
+        self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_200_OK, status.HTTP_201_CREATED],
+        )
+
+    @override_settings(MENUNO_CORE_SYNC_SECRET=TEST_SYNC_SECRET)
+    def test_duplicate_event_id_idempotent(self):
+        """Duplicate event_id → idempotent behavior."""
+        plan_data = self.make_plan_data()
+        event_id = str(uuid.uuid4())
+        payload = self.make_plan_payload(event_id=event_id, plan=plan_data)
+
+        # First request
+        response1 = self.sign_and_send(payload, event_id=event_id)
+        self.assertIn(
+            response1.status_code,
+            [status.HTTP_200_OK, status.HTTP_201_CREATED],
+        )
+
+        # Second request with same event_id
+        response2 = self.sign_and_send(payload, event_id=event_id)
+        self.assertIn(
+            response2.status_code,
+            [status.HTTP_200_OK, status.HTTP_201_CREATED],
+        )
+
+        # Only one plan should exist
+        self.assertEqual(
+            Plan.objects.filter(external_id=uuid.UUID(plan_data["external_id"])).count(),
+            1,
+        )

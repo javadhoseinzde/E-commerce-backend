@@ -63,8 +63,9 @@ class SaaSCoreSyncClientTest(TestCase):
 
     def setUp(self):
         self.client = SaaSCoreSyncClient(
-            base_url="http://core.local/api/internal/integration",
+            base_url="http://core.local/api/internal",
             api_key="test-core-api-key",
+            sync_secret="test-hmac-sync-secret",
             max_retries=2,
             retry_delay=0.01,  # Very short for tests
             timeout=5,
@@ -270,10 +271,15 @@ class SaaSCoreSyncClientTest(TestCase):
             duration_days=30,
         )
 
-        # Check that Request was created with correct headers
+        # Check that Request was created with HMAC headers
         call_args = mock_urlopen.call_args
         request = call_args[0][0]
-        self.assertEqual(request.get_header("X-internal-api-key"), "test-core-api-key")
+        # Should have HMAC headers, not API key header
+        self.assertIsNone(request.get_header("X-internal-api-key"))
+        # urllib normalizes header names to Title-Case
+        self.assertIsNotNone(request.get_header("X-menuno-signature"))
+        self.assertIsNotNone(request.get_header("X-menuno-timestamp"))
+        self.assertIsNotNone(request.get_header("X-menuno-event-id"))
 
     @patch("app.integration.saas_sync_client.urllib.request.urlopen")
     def test_all_retries_exhausted(self, mock_urlopen):

@@ -16,7 +16,7 @@ from typing import Optional
 from django.db import transaction, IntegrityError
 from django.utils import timezone
 
-from app.cafe.models import Plan, Subscription, CafeInfo, SyncEvent
+from app.cafe.models import Plan, Subscription, CafeInfo, SyncEvent, Cafe
 
 logger = logging.getLogger(__name__)
 
@@ -263,16 +263,24 @@ class SubscriptionSyncService:
 def _find_cafe_by_external_id(cafe_external_id: uuid.UUID) -> CafeInfo:
     """
     Find a CafeInfo by the cafe's external_id.
-    
-    Raises:
-        ValueError: If cafe not found
+    Auto-provisions Cafe + CafeInfo if not found (minimal stub data).
     """
     try:
         return CafeInfo.objects.select_related("cafe").get(
             cafe__external_id=cafe_external_id
         )
     except CafeInfo.DoesNotExist:
-        raise ValueError(f"Cafe with external_id {cafe_external_id} not found in Core")
+        logger.warning(
+            "Cafe %s not found in Core, auto-provisioning stub", cafe_external_id
+        )
+        short_id = str(cafe_external_id)[:8]
+        cafe = Cafe.objects.create(
+            external_id=cafe_external_id,
+            name=f"Cafe {short_id}",
+            slug=f"cafe-{short_id}",
+        )
+        cafe_info = CafeInfo.objects.create(cafe=cafe)
+        return cafe_info
 
 
 def _record_sync_event(

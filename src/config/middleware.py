@@ -23,11 +23,6 @@ class CafeTenantMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        print("HEADERS:", request.headers)
-
-        cafe = request.META.get("HTTP_X_CAFE")  # ✅ reliable way
+        cafe = request.META.get("HTTP_X_CAFE")
         request.cafe = cafe
-
-        print("CAFE:", request.cafe)
-
         return self.get_response(request)

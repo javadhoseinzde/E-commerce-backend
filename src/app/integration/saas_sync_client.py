@@ -37,11 +37,12 @@ import uuid
 import json
 import time
 import logging
+import hmac
 import hashlib
 import urllib.request
 import urllib.error
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
 from django.conf import settings
@@ -49,8 +50,9 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 # Default sync configuration
-DEFAULT_CORE_SYNC_URL = getattr(settings, "CORE_SYNC_BASE_URL", "http://localhost:8000/api/internal/integration")
+DEFAULT_CORE_SYNC_URL = getattr(settings, "CORE_SYNC_BASE_URL", "http://localhost:8000/api/internal")
 DEFAULT_CORE_API_KEY = getattr(settings, "CORE_INTERNAL_API_KEY", getattr(settings, "INTERNAL_API_KEY", ""))
+DEFAULT_CORE_SYNC_SECRET = getattr(settings, "MENUNO_CORE_SYNC_SECRET", "")
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_RETRY_DELAY = 1.0  # seconds
 DEFAULT_RETRY_BACKOFF = 2.0  # multiplier
@@ -79,18 +81,20 @@ class SyncStatus:
 class SaaSCoreSyncClient:
     """
     Client for SaaS → Core synchronization via authenticated HTTP API.
-    
+
     This client handles:
     - Plan synchronization
     - Subscription lifecycle event synchronization
     - Automatic retry with exponential backoff
     - Proper error handling and logging
     - Payment-safe behavior (never rolls back on sync failure)
-    
+
     Authentication:
-    - Uses X-Internal-API-Key header
-    - API key from settings (CORE_INTERNAL_API_KEY or INTERNAL_API_KEY)
-    
+    - HMAC-SHA256 signature for /api/internal/core/sync/ endpoint
+    - X-Menuno-Signature: HMAC-SHA256(secret, timestamp + "." + body)
+    - X-Menuno-Timestamp: ISO-8601 timestamp
+    - X-Menuno-Event-Id: UUID for idempotency
+
     Uses Python standard library (urllib) to avoid external dependencies.
     """
 
@@ -98,6 +102,7 @@ class SaaSCoreSyncClient:
         self,
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
+        sync_secret: Optional[str] = None,
         max_retries: int = DEFAULT_MAX_RETRIES,
         retry_delay: float = DEFAULT_RETRY_DELAY,
         retry_backoff: float = DEFAULT_RETRY_BACKOFF,
@@ -105,33 +110,71 @@ class SaaSCoreSyncClient:
     ):
         self.base_url = (base_url or DEFAULT_CORE_SYNC_URL).rstrip("/")
         self.api_key = api_key or DEFAULT_CORE_API_KEY
+        self.sync_secret = sync_secret or DEFAULT_CORE_SYNC_SECRET
         self.max_retries = max_retries
         self.retry_delay = retry_delay
         self.retry_backoff = retry_backoff
         self.timeout = timeout
+
+    def _compute_hmac_signature(self, timestamp: str, raw_body: bytes) -> str:
+        """
+        Compute HMAC-SHA256 signature matching Core's verification algorithm.
+
+        Signature algorithm:
+            HMAC-SHA256(MENUNO_CORE_SYNC_SECRET, timestamp + "." + raw_body)
+
+        Args:
+            timestamp: ISO-8601 timestamp string (same as X-Menuno-Timestamp header)
+            raw_body: Raw request body bytes (UTF-8 encoded JSON)
+
+        Returns:
+            Hex-encoded HMAC-SHA256 signature
+        """
+        message = (timestamp + ".").encode("utf-8") + raw_body
+        return hmac.new(
+            self.sync_secret.encode("utf-8"),
+            message,
+            hashlib.sha256,
+        ).hexdigest()
 
     def _make_request(
         self,
         method: str,
         endpoint: str,
         data: Optional[Dict] = None,
+        use_hmac: bool = False,
     ) -> Dict[str, Any]:
         """
         Make an HTTP request with retry logic using urllib.
-        
+
         Returns:
             Dict with 'status_code', 'data' (parsed JSON), 'error' (if any)
         """
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
-        headers = {
-            "X-Internal-API-Key": self.api_key,
-            "Content-Type": "application/json",
-        }
-        
+
         body = json.dumps(data).encode("utf-8") if data else None
-        
+
+        if use_hmac and self.sync_secret and body:
+            # HMAC-authenticated request for Core sync endpoint
+            event_id = str(uuid.uuid4())
+            timestamp = datetime.now(timezone.utc).isoformat()
+            signature = self._compute_hmac_signature(timestamp, body)
+
+            headers = {
+                "Content-Type": "application/json",
+                "X-Menuno-Event-Id": event_id,
+                "X-Menuno-Timestamp": timestamp,
+                "X-Menuno-Signature": signature,
+            }
+        else:
+            # API key-authenticated request (legacy)
+            headers = {
+                "X-Internal-API-Key": self.api_key,
+                "Content-Type": "application/json",
+            }
+
         last_exception = None
-        
+
         for attempt in range(self.max_retries + 1):
             try:
                 req = urllib.request.Request(
@@ -243,8 +286,8 @@ class SaaSCoreSyncClient:
             },
             "occurred_at": now,
         }
-        
-        result = self._make_request("POST", "sync/plan/", payload)
+
+        result = self._make_request("POST", "core/sync/", payload, use_hmac=True)
         
         if result["error"]:
             logger.error(f"Plan sync failed: {result['error']}")
@@ -309,8 +352,8 @@ class SaaSCoreSyncClient:
             "version": version,
             "occurred_at": now,
         }
-        
-        result = self._make_request("POST", "sync/subscription/", payload)
+
+        result = self._make_request("POST", "core/sync/", payload, use_hmac=True)
         
         if result["error"]:
             logger.error(f"Subscription sync failed ({event_type}): {result['error']}")
@@ -408,8 +451,8 @@ class SaaSCoreSyncClient:
         payload = {
             "cafe_external_id": str(cafe_external_id),
         }
-        
-        result = self._make_request("POST", "subscription/access-check/", payload)
+
+        result = self._make_request("POST", "integration/subscription/access-check/", payload)
         
         if result["error"]:
             logger.error(f"Subscription access check failed: {result['error']}")

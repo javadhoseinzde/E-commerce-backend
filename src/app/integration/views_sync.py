@@ -417,11 +417,23 @@ class CoreSyncAPIView(APIView):
     def post(self, request):
         event_type = request.data.get("event_type")
 
+        logger.info(
+            "CoreSync received: event_type=%s, payload_keys=%s, content_length=%s",
+            event_type,
+            list(request.data.keys()) if hasattr(request.data, 'keys') else 'not-dict',
+            request.META.get('CONTENT_LENGTH'),
+        )
+
         if event_type == "plan.synced":
             return self._sync_plan(request)
         elif event_type in ("subscription.activated", "subscription.expired", "subscription.cancelled"):
             return self._sync_subscription(request)
         else:
+            logger.warning(
+                "CoreSync unknown event_type: event_type=%s, payload_keys=%s",
+                event_type,
+                list(request.data.keys()) if hasattr(request.data, 'keys') else 'not-dict',
+            )
             return Response(
                 result_message("ERROR", status.HTTP_400_BAD_REQUEST, f"Unknown event_type: {event_type}"),
                 status=status.HTTP_400_BAD_REQUEST,
@@ -470,6 +482,15 @@ class CoreSyncAPIView(APIView):
     def _sync_subscription(self, request):
         serializer = SubscriptionSyncRequestSerializer(data=request.data)
         if not serializer.is_valid():
+            logger.warning(
+                "CoreSync subscription validation failed: errors=%s, payload_keys=%s, "
+                "event_type=%s, subscription_id=%s, cafe_id=%s",
+                serializer.errors,
+                list(request.data.keys()) if hasattr(request.data, 'keys') else 'not-dict',
+                request.data.get("event_type"),
+                request.data.get("subscription_id"),
+                request.data.get("cafe_id"),
+            )
             return Response(
                 result_message("ERROR", status.HTTP_400_BAD_REQUEST, serializer.errors),
                 status=status.HTTP_400_BAD_REQUEST,
